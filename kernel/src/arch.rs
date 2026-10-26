@@ -308,36 +308,53 @@ pub unsafe extern "C" fn everest_exception_dispatch(vector: u64, error_code: u64
         loop { unsafe { asm!("cli; hlt", options(nomem, nostack)) }; }
     }
     let info = unsafe { &*boot_info };
-    if vector == 14 {
-        let fault_address: u64;
-        unsafe { asm!("mov {0}, cr2", out(reg) fault_address, options(nomem, nostack, preserves_flags)) };
-        show_exception(info, b"PAGE FAULT", error_code, fault_address, instruction_pointer);
-    } else if vector == 0 {
-        show_exception(info, b"DIVIDE BY ZERO", error_code, 0, instruction_pointer);
-    } else if vector == 13 {
-        show_exception(info, b"GENERAL PROTECTION", error_code, 0, instruction_pointer);
+    let fault_address = if vector == 14 {
+        let address: u64;
+        unsafe { asm!("mov {0}, cr2", out(reg) address, options(nomem, nostack, preserves_flags)) };
+        address
     } else {
-        show_exception(info, b"CPU EXCEPTION", error_code, vector, instruction_pointer);
-    }
+        0
+    };
+    let title: &[u8] = match vector {
+        14 => b"PAGE FAULT",
+        0 => b"DIVIDE BY ZERO",
+        13 => b"GENERAL PROTECTION",
+        _ => b"CPU EXCEPTION",
+    };
+    show_exception(info, title, vector, error_code, fault_address, instruction_pointer);
     loop { unsafe { asm!("cli; hlt", options(nomem, nostack)) }; }
 }
 
-fn show_exception(info: &BootInfo, title: &[u8], error_code: u64, address: u64, instruction_pointer: u64) {
+fn show_exception(
+    info: &BootInfo,
+    title: &[u8],
+    vector: u64,
+    error_code: u64,
+    fault_address: u64,
+    instruction_pointer: u64,
+) {
     fill_rect(info, 0, 0, info.width, info.height, (28, 5, 14));
     draw_text(info, 24, 24, 2, b"EVEREST OS EXCEPTION", (255, 230, 235));
     draw_text(info, 24, 64, 2, title, (255, 120, 145));
+
     let mut error = [0u8; 18];
+    let mut vector_text = [0u8; 18];
     let mut fault = [0u8; 18];
     let mut rip = [0u8; 18];
-    draw_text(info, 24, 112, 1, b"ERROR CODE", (220, 220, 235));
-    draw_text(info, 160, 112, 1, hex64(error_code, &mut error), (255, 230, 235));
-    if title == b"PAGE FAULT" {
-        draw_text(info, 24, 136, 1, b"FAULT ADDRESS", (220, 220, 235));
-        draw_text(info, 160, 136, 1, hex64(address, &mut fault), (255, 230, 235));
-    }
-    draw_text(info, 24, 160, 1, b"INSTRUCTION", (220, 220, 235));
-    draw_text(info, 160, 160, 1, hex64(instruction_pointer, &mut rip), (255, 230, 235));
-    draw_text(info, 24, 208, 1, b"SYSTEM HALTED FOR DIAGNOSTICS", (255, 120, 145));
+    draw_text(info, 24, 112, 1, b"VECTOR", (220, 220, 235));
+    draw_text(info, 160, 112, 1, hex64(vector, &mut vector_text), (255, 230, 235));
+    draw_text(info, 24, 136, 1, b"ERROR CODE", (220, 220, 235));
+    draw_text(info, 160, 136, 1, hex64(error_code, &mut error), (255, 230, 235));
+    let instruction_y = if title == b"PAGE FAULT" {
+        draw_text(info, 24, 160, 1, b"FAULT ADDRESS", (220, 220, 235));
+        draw_text(info, 160, 160, 1, hex64(fault_address, &mut fault), (255, 230, 235));
+        184
+    } else {
+        160
+    };
+    draw_text(info, 24, instruction_y, 1, b"INSTRUCTION", (220, 220, 235));
+    draw_text(info, 160, instruction_y, 1, hex64(instruction_pointer, &mut rip), (255, 230, 235));
+    draw_text(info, 24, instruction_y + 40, 1, b"SYSTEM HALTED FOR DIAGNOSTICS", (255, 120, 145));
 }
 
 fn hex64(value: u64, output: &mut [u8; 18]) -> &[u8] {
