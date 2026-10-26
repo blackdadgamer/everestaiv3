@@ -1,6 +1,6 @@
 //! Legacy 8259 PIC, PIT clock and PS/2 keyboard interrupt support.
 use core::sync::atomic::{AtomicU64, AtomicU8, Ordering};
-use core::arch::asm;
+use core::arch::{asm, global_asm};
 
 static TICKS: AtomicU64 = AtomicU64::new(0);
 static LAST_KEY: AtomicU8 = AtomicU8::new(0);
