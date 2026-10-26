@@ -18,7 +18,7 @@ The repository toolchain file requests the target and rustfmt/clippy components.
 
 From the repository root:
 
-    ./scripts/build-uefi.sh
+    sh scripts/build-uefi.sh
 
 The script builds the release artifact and places it at:
 
