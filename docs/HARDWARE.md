@@ -31,7 +31,7 @@ No device is marked supported until it has been tested on physical hardware and 
 | GOP framebuffer discovery | Resolution and pixel format | Not tested |
 | Everest splash screen | Photo or repeatable screenshot | Not tested |
 | Return to firmware | Observed after splash delay | Not tested |
-| QEMU/OVMF boot | GitHub Actions run 23: 1280×800 screenshot detected 784 kernel-status-color pixels | Passed in CI; physical test still open |
+| QEMU/OVMF boot | GitHub Actions run 40: 1280×800 screenshot detected 784 kernel-status-color pixels | Passed in CI; physical test still open |
 
 ## Later subsystem tests
 
