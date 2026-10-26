@@ -1,0 +1,10 @@
+[package]
+name = "everest-kernel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["rlib"]
