@@ -3,6 +3,7 @@
 
 use core::ptr;
 
+use everest_kernel::{kernel_main, BootInfo, PixelFormat as KernelPixelFormat};
 use uefi::prelude::*;
 use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
 
@@ -14,12 +15,12 @@ fn main() -> Status {
     }
 
     uefi::println!("Everest OS firmware bring-up");
-    uefi::println!("This is the first boot stage, not yet the standalone kernel.");
+    uefi::println!("Preparing the early kernel handoff.");
 
     let handle = match boot::get_handle_for_protocol::<GraphicsOutput>() {
         Ok(handle) => handle,
         Err(_) => {
-            uefi::println!("GOP framebuffer unavailable; text diagnostic only.");
+            uefi::println!("GOP framebuffer unavailable; cannot enter the visual kernel milestone.");
             let _ = boot::stall(2_000_000);
             return Status::SUCCESS;
         }
@@ -28,7 +29,7 @@ fn main() -> Status {
     let mut gop = match boot::open_protocol_exclusive::<GraphicsOutput>(handle) {
         Ok(gop) => gop,
         Err(_) => {
-            uefi::println!("Could not open GOP; text diagnostic only.");
+            uefi::println!("Could not open GOP; cannot enter the visual kernel milestone.");
             let _ = boot::stall(2_000_000);
             return Status::SUCCESS;
         }
@@ -40,25 +41,47 @@ fn main() -> Status {
     let format = info.pixel_format();
     let mut framebuffer = gop.frame_buffer();
 
-    if width < 320 || height < 200 || stride < width || framebuffer.size() < stride.saturating_mul(height).saturating_mul(4) {
+    if width < 320
+        || height < 200
+        || stride < width
+        || framebuffer.size() < stride.saturating_mul(height).saturating_mul(4)
+    {
         uefi::println!("Framebuffer geometry is not suitable for the splash screen.");
         let _ = boot::stall(2_000_000);
         return Status::SUCCESS;
     }
 
     if !matches!(format, PixelFormat::Rgb | PixelFormat::Bgr) {
-        uefi::println!("Framebuffer pixel format is not supported by this splash renderer.");
+        uefi::println!("Framebuffer pixel format is not supported by this renderer.");
         let _ = boot::stall(2_000_000);
         return Status::SUCCESS;
     }
 
+    let kernel_pixel_format = match format {
+        PixelFormat::Rgb => KernelPixelFormat::Rgb,
+        PixelFormat::Bgr => KernelPixelFormat::Bgr,
+        _ => return Status::UNSUPPORTED,
+    };
     let base = framebuffer.as_mut_ptr();
-    draw_splash(base, stride, width, height, format);
+    let boot_info = BootInfo {
+        framebuffer: base,
+        width,
+        height,
+        stride,
+        pixel_format: kernel_pixel_format,
+    };
 
-    // Keep the splash visible long enough to verify physical boot, then return
-    // to firmware. A future milestone will replace this with kernel handoff.
-    let _ = boot::stall(3_000_000);
-    Status::SUCCESS
+    draw_splash(base, stride, width, height, format);
+    drop(framebuffer);
+    drop(gop);
+
+    // Leave enough time for a physical-device camera/photo test, then take over.
+    let _ = boot::stall(1_500_000);
+
+    // UEFI services are no longer available after this call. The returned memory
+    // map owner is deliberately kept alive while the early kernel is running.
+    let _memory_map = unsafe { boot::exit_boot_services(None) };
+    kernel_main(&boot_info)
 }
 
 fn draw_splash(base: *mut u8, stride: usize, width: usize, height: usize, format: PixelFormat) {
@@ -72,36 +95,50 @@ fn draw_splash(base: *mut u8, stride: usize, width: usize, height: usize, format
     }
 
     let horizon = height * 2 / 3;
-    fill_triangle(base, stride, width, height, format,
+    fill_triangle(
+        base, stride, width, height, format,
         (width / 16, horizon), (width * 7 / 16, height / 4), (width * 5 / 8, horizon),
-        (25, 39, 83));
-    fill_triangle(base, stride, width, height, format,
+        (25, 39, 83),
+    );
+    fill_triangle(
+        base, stride, width, height, format,
         (width * 3 / 8, horizon), (width * 11 / 16, height / 3), (width * 15 / 16, horizon),
-        (19, 29, 65));
-    fill_triangle(base, stride, width, height, format,
+        (19, 29, 65),
+    );
+    fill_triangle(
+        base, stride, width, height, format,
         (width / 4, horizon), (width * 9 / 16, height / 2), (width * 13 / 16, horizon),
-        (39, 51, 99));
+        (39, 51, 99),
+    );
 
-    // Snow caps create a recognizable mountain silhouette.
-    fill_triangle(base, stride, width, height, format,
+    fill_triangle(
+        base, stride, width, height, format,
         (width * 7 / 16, height / 4), (width * 15 / 32, height * 3 / 8), (width * 17 / 32, height * 3 / 8),
-        (190, 207, 241));
-    fill_triangle(base, stride, width, height, format,
+        (190, 207, 241),
+    );
+    fill_triangle(
+        base, stride, width, height, format,
         (width * 11 / 16, height / 3), (width * 21 / 32, height * 9 / 20), (width * 23 / 32, height * 9 / 20),
-        (155, 176, 221));
+        (155, 176, 221),
+    );
 
     let title_scale = (height / 100).clamp(3, 10);
     let title_width = 10 * 6 * title_scale;
     let title_x = width.saturating_sub(title_width) / 2;
     let title_y = height * 3 / 4;
-    draw_text(base, stride, width, height, format, title_x, title_y, title_scale, b"EVEREST OS", (242, 246, 255));
+    draw_text(
+        base, stride, width, height, format,
+        title_x, title_y, title_scale, b"EVEREST OS", (242, 246, 255),
+    );
 
     let subtitle_scale = (title_scale / 3).max(1);
     let subtitle = b"INDEPENDENT OPERATING SYSTEM";
     let subtitle_width = subtitle.len() * 6 * subtitle_scale;
-    draw_text(base, stride, width, height, format,
+    draw_text(
+        base, stride, width, height, format,
         width.saturating_sub(subtitle_width) / 2, title_y + 10 * title_scale,
-        subtitle_scale, subtitle, (130, 153, 206));
+        subtitle_scale, subtitle, (130, 153, 206),
+    );
 }
 
 fn put_pixel(
@@ -200,8 +237,10 @@ fn draw_text(
         for (row, bits) in glyph.iter().enumerate() {
             for col in 0..5usize {
                 if bits & (1 << (4 - col)) != 0 {
-                    fill_rect(base, stride, width, height, format,
-                        cursor_x + col * scale, y + row * scale, scale, scale, color);
+                    fill_rect(
+                        base, stride, width, height, format,
+                        cursor_x + col * scale, y + row * scale, scale, scale, color,
+                    );
                 }
             }
         }
