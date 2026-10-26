@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod arch;
 pub mod memory;
 
 use core::{mem, ptr};
@@ -53,7 +54,7 @@ const MAX_MEMORY_MAP_BYTES: usize = 64 * 1024 * 1024;
 
 /// Entry reached only after the UEFI boot services have been exited.
 ///
-/// Validates the boot contract, constructs the initial frame allocator, then halts.
+/// Validates boot data, creates independent page tables, installs exception handlers, then halts.
 pub fn kernel_main(info: &BootInfo) -> ! {
     unsafe {
         // No IDT or interrupt-controller setup exists yet. Do not allow maskable
@@ -65,7 +66,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     let mut usable = [memory::MemoryRegion::EMPTY; 256];
     let mut free_storage = [memory::MemoryRegion::EMPTY; 512];
     let mut managed_storage = [memory::MemoryRegion::EMPTY; 512];
-    let allocator = if memory_map_valid {
+    let mut allocator = if memory_map_valid {
         let parsed = unsafe {
             memory::parse_usable_regions(
                 info.memory_map, info.memory_map_size, info.memory_descriptor_size,
@@ -87,7 +88,14 @@ pub fn kernel_main(info: &BootInfo) -> ! {
         })
     } else { None };
     let allocator_ready = allocator.as_ref().is_some_and(|a| a.free_frame_count() > 0);
-    draw_kernel_status(info, memory_map_valid, allocator_ready);
+    let virtual_memory_ready = if let Some(ref mut allocator) = allocator {
+        // SAFETY: maskable interrupts are disabled and allocator metadata plus
+        // all required boot data remain live for the non-returning kernel entry.
+        unsafe { arch::initialize(info, allocator).is_ok() }
+    } else {
+        false
+    };
+    draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
 
     loop {
         unsafe {
@@ -141,7 +149,7 @@ fn validate_memory_map(info: &BootInfo) -> bool {
     true
 }
 
-fn draw_kernel_status(info: &BootInfo, memory_map_valid: bool, allocator_ready: bool) {
+fn draw_kernel_status(info: &BootInfo, memory_map_valid: bool, allocator_ready: bool, virtual_memory_ready: bool) {
     if info.framebuffer.is_null()
         || info.width < 320
         || info.height < 200
@@ -210,6 +218,18 @@ fn draw_kernel_status(info: &BootInfo, memory_map_valid: bool, allocator_ready: 
         info, info.width.saturating_sub(allocator_status_width) / 2,
         info.height * 2 / 5 + 42 * scale, 1, allocator_status,
         if allocator_ready { (118, 222, 190) } else { (255, 120, 120) },
+    );
+
+    let vm_status: &[u8] = if virtual_memory_ready {
+        b"OWN PAGE TABLES + IDT ACTIVE"
+    } else {
+        b"VIRTUAL MEMORY / IDT FAILED"
+    };
+    let vm_status_width = vm_status.len() * 6;
+    draw_text(
+        info, info.width.saturating_sub(vm_status_width) / 2,
+        info.height * 2 / 5 + 51 * scale, 1, vm_status,
+        if virtual_memory_ready { (110, 190, 255) } else { (255, 120, 120) },
     );
 }
 
