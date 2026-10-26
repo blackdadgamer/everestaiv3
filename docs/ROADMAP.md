@@ -19,10 +19,10 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 - [x] Discover GOP and validate framebuffer geometry/format.
 - [x] Draw an Everest splash screen with a fallback diagnostic.
 - [x] Add a script that creates the standard removable-media EFI path.
-- [ ] Boot in QEMU/OVMF.
+- [x] Boot in QEMU/OVMF (automated CI screenshot check passed).
 - [ ] Boot from a disposable USB on one documented physical UEFI PC.
 
-**Exit criteria:** repeatable EFI artifact and verified early-kernel boot on both emulated and physical hardware. The splash and kernel status screen are implemented, but QEMU and physical-PC boot tests remain open.
+**Exit criteria:** repeatable EFI artifact and verified early-kernel boot on both emulated and physical hardware. The QEMU/OVMF smoke test now passes in CI; physical-PC USB boot remains open.
 
 ## M2 — Kernel handoff and early diagnostics
 
@@ -32,7 +32,7 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 - [ ] Add serial/early logging and panic diagnostics.
 - [ ] Validate all boot data before use.
 
-**Exit criteria:** kernel reaches its entry point on the reference PC and QEMU and reports a verifiable milestone. Entry/handoff code is committed; hardware and emulator execution are not yet verified.
+**Exit criteria:** kernel reaches its entry point on the reference PC and QEMU and reports a verifiable milestone. QEMU execution is verified; physical-PC execution is not yet verified.
 
 ## M3 — CPU, memory and interrupt foundations
 
