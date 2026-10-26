@@ -1,0 +1,15 @@
+[package]
+name = "everest-boot"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+uefi = { workspace = true }
+
+[[bin]]
+name = "everest-boot"
+path = "src/main.rs"
+test = false
+bench = false
