@@ -2,7 +2,7 @@
 
 ## Current scope
 
-The current artifact is an x86-64 UEFI firmware bring-up application. It draws an Everest splash screen using the UEFI Graphics Output Protocol (GOP) when the firmware exposes a supported RGB/BGR framebuffer. It returns to firmware after a short delay. It does not yet enter an Everest kernel, mount storage, or provide a desktop.
+The current artifact is an x86-64 UEFI executable containing both the firmware-stage application and an early Everest kernel entry. It draws an Everest splash screen using the UEFI Graphics Output Protocol (GOP), exits UEFI boot services, transfers control to the kernel entry, draws a kernel status screen, and halts. The kernel still relies on the firmware's existing CPU/page-table state and does not yet parse the memory map, initialize its own memory management, run device drivers, mount storage, or provide a desktop.
 
 ## Requirements
 
@@ -33,7 +33,7 @@ The script does not format, partition, or write a physical disk.
 3. Format the USB as FAT32 using your normal operating-system tools.
 4. Copy the contents of the generated dist directory to the USB root so the EFI file is at EFI/BOOT/BOOTX64.EFI.
 5. Use the firmware's one-time boot menu to boot the USB in UEFI mode.
-6. Verify the splash screen and record the PC model, firmware version, display resolution, and result.
+6. Verify both the Everest splash and the later kernel status screen. Record the PC model, firmware version, display resolution, and result.
 7. Remove the USB and reboot normally.
 
 Do not disable Secure Boot or change firmware security settings casually. If the firmware blocks the unsigned development EFI application, record the exact message and use an appropriate development test configuration only if you understand the security implications.
