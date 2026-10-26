@@ -203,12 +203,22 @@ unsafe extern "C" {
 /// Caller must have disabled maskable interrupts and must provide an allocator
 /// whose page-table frames are writable through the current firmware mapping.
 pub unsafe fn initialize(boot_info: &BootInfo, allocator: &mut crate::memory::FrameAllocator<'_>) -> Result<(), &'static str> {
+    let boot_info_address = boot_info as *const BootInfo as u64;
+    let map_address = boot_info.memory_map as u64;
+    let framebuffer_address = boot_info.framebuffer as u64;
+    let stack_pointer: u64;
+    unsafe {
+        asm!("mov {}, rsp", out(reg) stack_pointer, options(nomem, nostack, preserves_flags))
+    };
     if boot_info.kernel_image_start >= IDENTITY_MAP_LIMIT
         || boot_info.kernel_image_start.checked_add(boot_info.kernel_image_size).is_none_or(|end| end > IDENTITY_MAP_LIMIT)
-        || (boot_info as *const BootInfo as u64) >= IDENTITY_MAP_LIMIT
-        || (boot_info.memory_map as u64) >= IDENTITY_MAP_LIMIT
-        || (boot_info.framebuffer as u64) >= IDENTITY_MAP_LIMIT
-        || boot_info.framebuffer_size as u64 > IDENTITY_MAP_LIMIT.saturating_sub(boot_info.framebuffer as u64)
+        || boot_info_address >= IDENTITY_MAP_LIMIT
+        || mem::size_of::<BootInfo>() as u64 > IDENTITY_MAP_LIMIT.saturating_sub(boot_info_address)
+        || map_address >= IDENTITY_MAP_LIMIT
+        || boot_info.memory_map_size as u64 > IDENTITY_MAP_LIMIT.saturating_sub(map_address)
+        || framebuffer_address >= IDENTITY_MAP_LIMIT
+        || boot_info.framebuffer_size as u64 > IDENTITY_MAP_LIMIT.saturating_sub(framebuffer_address)
+        || stack_pointer >= IDENTITY_MAP_LIMIT
     {
         return Err("Required early kernel memory lies outside the initial 4 GiB identity map");
     }
