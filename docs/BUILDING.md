@@ -24,7 +24,7 @@ The script builds the release artifact and places it at:
 
     dist/EFI/BOOT/BOOTX64.EFI
 
-The script does not format, partition, or write a physical disk.
+The script does not format, partition, or write a physical disk. After the QEMU/OVMF test passes, GitHub Actions also uploads an artifact named **everest-os-uefi-boot** containing the EFI application (retained for 14 days).
 
 ## Automated QEMU/OVMF smoke test
 
@@ -41,7 +41,7 @@ The GitHub Actions workflow runs the same smoke test on pushes and pull requests
 1. Use a disposable USB drive whose contents can be erased.
 2. Back up anything on that USB drive.
 3. Format the USB as FAT32 using your normal operating-system tools.
-4. Copy the contents of the generated dist directory to the USB root so the EFI file is at EFI/BOOT/BOOTX64.EFI.
+4. Copy the contents of the generated dist directory to the USB root so the EFI file is at EFI/BOOT/BOOTX64.EFI. Alternatively, download and extract the everest-os-uefi-boot artifact from a successful GitHub Actions run, create the EFI/BOOT folders on the USB, and place BOOTX64.EFI there.
 5. Use the firmware's one-time boot menu to boot the USB in UEFI mode.
 6. Verify both the Everest splash and the later kernel status screen. Record the PC model, firmware version, display resolution, and result.
 7. Remove the USB and reboot normally.
