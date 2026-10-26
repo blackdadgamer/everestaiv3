@@ -5,7 +5,7 @@ ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 rustup target add x86_64-unknown-uefi
-cargo build --release --target x86_64-unknown-uefi -p everest-boot
+cargo build --locked --release --target x86_64-unknown-uefi -p everest-boot
 
 OUT_DIR="$ROOT_DIR/dist"
 EFI_DIR="$OUT_DIR/EFI/BOOT"
