@@ -84,6 +84,9 @@ wait "$QEMU_PID" || true
 QEMU_PID=""
 
 if ! python3 scripts/check-qemu-screen.py "$SCREEN"; then
+    cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen.ppm"
+    cp "$TMP_DIR/qemu.log" "$ROOT_DIR/dist/qemu-debug.log"
+    printf 'Saved QEMU failure screenshot and log under dist/ for CI artifact inspection.\n' >&2
     printf 'QEMU diagnostic log follows:\n' >&2
     cat "$TMP_DIR/qemu.log" >&2
     exit 1
