@@ -58,7 +58,7 @@ dependencies = [
 
 [[package]]
 name = "ptr_meta_derive"
-version = "1.0.47"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c8d9ca532f185d5d4db7a7c9d51420b452168ea1c2b913953281bd6fe1fcbd0"
 dependencies = [
