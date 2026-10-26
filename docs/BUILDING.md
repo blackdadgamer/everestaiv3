@@ -2,7 +2,7 @@
 
 ## Current scope
 
-The current artifact is an x86-64 UEFI executable containing both the firmware-stage application and an early Everest kernel entry. It draws an Everest splash screen using the UEFI Graphics Output Protocol (GOP), exits UEFI boot services, transfers control to the kernel entry, draws a kernel status screen, and halts. The kernel still relies on the firmware's existing CPU/page-table state and does not yet parse the memory map, initialize its own memory management, run device drivers, mount storage, or provide a desktop.
+The current artifact is an x86-64 UEFI executable containing both the firmware-stage application and an early Everest kernel entry. It draws an Everest splash screen using the UEFI Graphics Output Protocol (GOP), exits UEFI boot services, transfers control to the kernel entry, validates the supplied UEFI memory-map descriptor structure, draws a kernel status screen, and halts. The kernel still relies on the firmware's existing CPU/page-table state. It does not yet allocate physical memory, initialize its own page tables, run device drivers, mount storage, or provide a desktop.
 
 ## Requirements
 
