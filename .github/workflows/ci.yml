@@ -39,6 +39,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: everest-os-uefi-boot
-          path: dist/EFI/BOOT/BOOTX64.EFI
+          path: |
+            dist/EFI/BOOT/BOOTX64.EFI
+            Cargo.lock
           if-no-files-found: error
           retention-days: 14
