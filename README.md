@@ -2,7 +2,7 @@
 
 **Everest OS** is an independent operating-system project being implemented from scratch, primarily in Rust. The first target is real x86-64 PCs booting through UEFI; virtual machines are a test environment, not the product target. AArch64 support is planned after the initial x86-64 foundation stabilizes.
 
-> **Current status:** first implementation milestone. The repository now contains a Rust UEFI application and an early kernel entry linked into the same EFI executable. CI compiles the current code; QEMU and physical-PC boot are not yet verified.
+> **Current status:** first implementation milestone. The repository now contains a Rust UEFI application and an early kernel entry linked into the same EFI executable. CI compiles the current code and the QEMU/OVMF screenshot smoke test passes. Physical-PC boot remains unverified.
 
 ## Project principles
 
@@ -17,7 +17,7 @@
 
 The UEFI application discovers the Graphics Output Protocol (GOP), draws an Everest splash screen, records framebuffer metadata, exits UEFI boot services, and transfers control to a small kernel entry linked into the same EFI image. The kernel draws a status screen and halts with maskable interrupts disabled.
 
-This is an early kernel handoff, not yet a usable operating system. The kernel does not yet parse the full memory map, establish its own page tables or interrupt handlers, manage memory, run processes, or drive devices. Physical and QEMU boot tests remain open.
+This is an early kernel handoff, not yet a usable operating system. The kernel does not yet parse the full memory map, establish its own page tables or interrupt handlers, manage memory, run processes, or drive devices. The automated QEMU/OVMF test passes; physical-PC USB boot remains open.
 
 ## Planned system layers
 
