@@ -23,7 +23,7 @@ The Rust UEFI executable discovers the Graphics Output Protocol (GOP) and draws 
 
 ### Stage B — early kernel handoff (implemented, not hardware-verified)
 
-The EFI image contains an early no_std kernel entry. The boot application creates a framebuffer-only BootInfo structure, releases its GOP protocol handle, exits UEFI boot services, and calls the kernel entry. The kernel draws a status screen, masks normal interrupts, and halts. The UEFI memory-map owner remains alive, but the kernel does not yet parse or use the map for allocation.
+The EFI image contains an early no_std kernel entry. The boot application creates a framebuffer-only BootInfo structure, releases its GOP protocol handle, exits UEFI boot services, and calls the kernel entry. The kernel draws a status screen, masks normal interrupts, and halts. The UEFI memory-map owner remains alive. The kernel parses conventional-memory descriptors and initializes a fixed-capacity 4 KiB physical frame allocator. It explicitly excludes the loaded EFI image, the BootInfo object, and the memory-map buffer. The allocator is still an early foundation: its metadata is stack-backed, and physical frame allocation is not yet connected to virtual-memory mappings or a heap.
 
 This is a real handoff into code that no longer calls UEFI boot services, but it is not yet a complete kernel. It still uses the firmware's existing CPU state and page-table mapping.
 

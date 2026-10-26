@@ -1,5 +1,7 @@
 #![no_std]
 
+pub mod memory;
+
 use core::{mem, ptr};
 
 #[repr(u32)]
@@ -25,6 +27,9 @@ pub struct BootInfo {
     pub memory_map_size: usize,
     pub memory_descriptor_size: usize,
     pub memory_descriptor_version: u32,
+    /// Physical base and byte length of the loaded EFI image containing the kernel.
+    pub kernel_image_start: u64,
+    pub kernel_image_size: u64,
 }
 
 /// UEFI x86-64 MemoryDescriptor v1 layout.
@@ -48,9 +53,7 @@ const MAX_MEMORY_MAP_BYTES: usize = 64 * 1024 * 1024;
 
 /// Entry reached only after the UEFI boot services have been exited.
 ///
-/// This milestone validates the boot contract and walks the UEFI memory map.
-/// It deliberately does not allocate physical pages yet; that is the next
-/// memory-management milestone.
+/// Validates the boot contract, constructs the initial frame allocator, then halts.
 pub fn kernel_main(info: &BootInfo) -> ! {
     unsafe {
         // No IDT or interrupt-controller setup exists yet. Do not allow maskable
@@ -59,7 +62,32 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     }
 
     let memory_map_valid = validate_memory_map(info);
-    draw_kernel_status(info, memory_map_valid);
+    let mut usable = [memory::MemoryRegion::EMPTY; 256];
+    let mut free_storage = [memory::MemoryRegion::EMPTY; 512];
+    let mut managed_storage = [memory::MemoryRegion::EMPTY; 512];
+    let allocator = if memory_map_valid {
+        let parsed = unsafe {
+            memory::parse_usable_regions(
+                info.memory_map, info.memory_map_size, info.memory_descriptor_size,
+                info.memory_descriptor_version, &mut usable,
+            )
+        };
+        parsed.ok().and_then(|count| {
+            let boot_info_start = (info as *const BootInfo) as usize as u64;
+            let map_start = info.memory_map as usize as u64;
+            let reserved = [
+                memory::MemoryRegion::new(info.kernel_image_start,
+                    info.kernel_image_start.checked_add(info.kernel_image_size).unwrap_or(info.kernel_image_start)),
+                memory::MemoryRegion::new(boot_info_start,
+                    boot_info_start.checked_add(mem::size_of::<BootInfo>() as u64).unwrap_or(boot_info_start)),
+                memory::MemoryRegion::new(map_start,
+                    map_start.checked_add(info.memory_map_size as u64).unwrap_or(map_start)),
+            ];
+            memory::FrameAllocator::new(&usable[..count], &reserved, &mut free_storage, &mut managed_storage).ok()
+        })
+    } else { None };
+    let allocator_ready = allocator.as_ref().is_some_and(|a| a.free_frame_count() > 0);
+    draw_kernel_status(info, memory_map_valid, allocator_ready);
 
     loop {
         unsafe {
@@ -113,7 +141,7 @@ fn validate_memory_map(info: &BootInfo) -> bool {
     true
 }
 
-fn draw_kernel_status(info: &BootInfo, memory_map_valid: bool) {
+fn draw_kernel_status(info: &BootInfo, memory_map_valid: bool, allocator_ready: bool) {
     if info.framebuffer.is_null()
         || info.width < 320
         || info.height < 200
@@ -174,6 +202,14 @@ fn draw_kernel_status(info: &BootInfo, memory_map_valid: bool) {
         1,
         memory_status,
         if memory_map_valid { (118, 222, 190) } else { (255, 120, 120) },
+    );
+
+    let allocator_status: &[u8] = if allocator_ready { b"FRAME ALLOCATOR READY" } else { b"FRAME ALLOCATOR UNAVAILABLE" };
+    let allocator_status_width = allocator_status.len() * 6;
+    draw_text(
+        info, info.width.saturating_sub(allocator_status_width) / 2,
+        info.height * 2 / 5 + 42 * scale, 1, allocator_status,
+        if allocator_ready { (118, 222, 190) } else { (255, 120, 120) },
     );
 }
 

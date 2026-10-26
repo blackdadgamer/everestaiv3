@@ -6,6 +6,7 @@ use core::ptr;
 use everest_kernel::{kernel_main, BootInfo, PixelFormat as KernelPixelFormat};
 use uefi::prelude::*;
 use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
+use uefi::proto::loaded_image::LoadedImage;
 use uefi::mem::memory_map::MemoryMap;
 
 #[entry]
@@ -65,6 +66,21 @@ fn main() -> Status {
     };
     let framebuffer_base = framebuffer.as_mut_ptr();
 
+    // Capture the complete loaded EFI image range before exiting boot services.
+    // This image contains both the loader and the early kernel code/data.
+    let (kernel_image_base, kernel_image_size) =
+        match boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle()) {
+            Ok(image) => {
+                let (base, size) = image.info();
+                (base as usize as u64, size)
+            }
+            Err(_) => {
+                uefi::println!("Could not query loaded image range; refusing unsafe memory allocation.");
+                let _ = boot::stall(2_000_000);
+                return Status::ABORTED;
+            }
+        };
+
     draw_splash(framebuffer_base, stride, width, height, format);
     drop(framebuffer);
     drop(gop);
@@ -87,6 +103,8 @@ fn main() -> Status {
         memory_map_size: memory_map_meta.map_size,
         memory_descriptor_size: memory_map_meta.desc_size,
         memory_descriptor_version: memory_map_meta.desc_version,
+        kernel_image_start: kernel_image_base,
+        kernel_image_size,
     };
 
     kernel_main(&boot_info)
