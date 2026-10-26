@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that the QEMU framebuffer screenshot contains the kernel status color."""
+"""Check that QEMU reaches the kernel with its own page tables and IDT active."""
 
 import re
 import sys
@@ -27,21 +27,25 @@ def main() -> int:
         )
         return 1
 
-    # This exact color is used for the kernel's KERNEL ONLINE status text.
-    expected = bytes((118, 222, 190))
-    count = sum(
-        1
-        for offset in range(0, len(pixels), 3)
-        if pixels[offset:offset + 3] == expected
-    )
+    # Unique color used only for the independent page-table + IDT status.
+    expected = bytes((110, 190, 255))
+    reverse_expected = bytes((255, 190, 110))
+    old_kernel_status = bytes((118, 222, 190))
+    exception_status = bytes((255, 120, 145))
+    colors = [pixels[offset:offset + 3] for offset in range(0, len(pixels), 3)]
+    count = sum(color == expected or color == reverse_expected for color in colors)
+    old_count = sum(color == old_kernel_status for color in colors)
+    exception_count = sum(color == exception_status for color in colors)
     if count < 10:
         print(
-            f"No kernel status screen detected ({count} status-color pixels in {width}x{height}).",
+            f"No independent page tables/IDT status detected ({count} expected pixels; "
+            f"{old_count} legacy kernel-status pixels; {exception_count} exception pixels "
+            f"in {width}x{height}).",
             file=sys.stderr,
         )
         return 1
 
-    print(f"QEMU UEFI boot passed: detected {count} kernel status pixels in {width}x{height}.")
+    print(f"QEMU UEFI boot passed: detected {count} independent page-table/IDT status pixels in {width}x{height}.")
     return 0
 
 

@@ -39,9 +39,9 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 
 ## M3 — CPU, memory and interrupt foundations
 
-- [ ] CPU exception handling and diagnostic dumps.
+- [x] Install an x86-64 IDT with exception stubs and diagnostic handlers for divide-by-zero, general protection, and page faults (including CR2 and error code).
 - [x] Initial fixed-capacity physical page-frame allocator built from validated conventional-memory regions, with explicit image/boot-info/map reservations and unit tests.
-- [ ] Virtual memory mappings and page-fault handling.
+- [x] Create allocator-backed PML4/PDPT/page directories, switch CR3 to independent 2 MiB identity mappings for the low 4 GiB, and verify the IDT via a breakpoint self-test in QEMU.
 - [ ] Kernel heap with tests.
 - [ ] Timer and interrupt-controller support.
 - [ ] Locking primitives and interrupt-safe rules.

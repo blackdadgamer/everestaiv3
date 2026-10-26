@@ -13,6 +13,7 @@ jobs:
   rust:
     name: Rust formatting, UEFI compile and QEMU boot
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,17 +34,26 @@ jobs:
         run: cargo test --locked -p everest-kernel
 
       - name: Install QEMU/OVMF test tools
-        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 ovmf dosfstools mtools socat
+        timeout-minutes: 5
+        run: |
+          packages="qemu-system-x86 ovmf dosfstools mtools socat"
+          if ! sudo apt-get install -y $packages; then
+            sudo apt-get update -o Acquire::Retries=1 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10
+            sudo apt-get install -y $packages
+          fi
 
       - name: Build and boot in QEMU/OVMF
         run: sh scripts/test-qemu.sh
 
-      - name: Upload bootable EFI application
+      - name: Upload boot and QEMU diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: everest-os-uefi-boot
+          name: everest-os-uefi-boot-and-diagnostics
           path: |
             dist/EFI/BOOT/BOOTX64.EFI
+            dist/qemu-debug-screen.ppm
+            dist/qemu-debug.log
             Cargo.lock
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
