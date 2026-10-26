@@ -83,10 +83,10 @@ unsafe extern "C" {
     fn everest_irq_44(); fn everest_irq_45(); fn everest_irq_46(); fn everest_irq_47();
 }
 pub(crate) fn stubs() -> [usize; 16] {
-    [everest_irq_32 as usize,everest_irq_33 as usize,everest_irq_34 as usize,everest_irq_35 as usize,
-     everest_irq_36 as usize,everest_irq_37 as usize,everest_irq_38 as usize,everest_irq_39 as usize,
-     everest_irq_40 as usize,everest_irq_41 as usize,everest_irq_42 as usize,everest_irq_43 as usize,
-     everest_irq_44 as usize,everest_irq_45 as usize,everest_irq_46 as usize,everest_irq_47 as usize]
+    [everest_irq_32 as *const () as usize,everest_irq_33 as *const () as usize,everest_irq_34 as *const () as usize,everest_irq_35 as *const () as usize,
+     everest_irq_36 as *const () as usize,everest_irq_37 as *const () as usize,everest_irq_38 as *const () as usize,everest_irq_39 as *const () as usize,
+     everest_irq_40 as *const () as usize,everest_irq_41 as *const () as usize,everest_irq_42 as *const () as usize,everest_irq_43 as *const () as usize,
+     everest_irq_44 as *const () as usize,everest_irq_45 as *const () as usize,everest_irq_46 as *const () as usize,everest_irq_47 as *const () as usize]
 }
 unsafe fn outb(port:u16,value:u8){ unsafe{asm!("out dx, al",in("dx")port,in("al")value,options(nomem,nostack,preserves_flags))}; }
 unsafe fn inb(port:u16)->u8{let v:u8;unsafe{asm!("in al, dx",in("dx")port,out("al")v,options(nomem,nostack,preserves_flags))};v}
