@@ -40,7 +40,7 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 ## M3 — CPU, memory and interrupt foundations
 
 - [ ] CPU exception handling and diagnostic dumps.
-- [ ] Physical page-frame allocator built from validated usable memory regions.
+- [x] Initial fixed-capacity physical page-frame allocator built from validated conventional-memory regions, with explicit image/boot-info/map reservations and unit tests.
 - [ ] Virtual memory mappings and page-fault handling.
 - [ ] Kernel heap with tests.
 - [ ] Timer and interrupt-controller support.
