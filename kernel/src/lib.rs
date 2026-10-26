@@ -3,6 +3,7 @@
 pub mod arch;
 pub mod memory;
 pub mod interrupts;
+pub mod heap;
 
 use core::{mem, ptr};
 
@@ -96,6 +97,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     } else {
         false
     };
+    if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
     if virtual_memory_ready {
         unsafe { interrupts::initialize(); }
