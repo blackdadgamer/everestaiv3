@@ -14,5 +14,5 @@ cp "$ROOT_DIR/target/x86_64-unknown-uefi/release/everest-boot.efi" "$EFI_DIR/BOO
 
 printf '\nEverest OS UEFI application built.\n'
 printf 'Removable-media EFI file: %s\n' "$EFI_DIR/BOOTX64.EFI"
-printf 'This is a UEFI bring-up application, not yet a standalone kernel.\n'
+printf 'Kernel entry is linked into the EFI image; memory management and drivers are not yet implemented.\n'
 printf 'No physical disk was written. Copy dist/ to a disposable FAT32 USB manually.\n'
