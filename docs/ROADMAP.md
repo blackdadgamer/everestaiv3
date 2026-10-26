@@ -7,7 +7,8 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 - [x] Establish project principles and initial architecture.
 - [x] Rename the project consistently to Everest OS.
 - [x] Define physical-PC-first testing and safe image-writing policy.
-- [x] Pin the Rust stable toolchain and create a workspace.
+- [x] Pin Rust 1.99.1 and create the workspace.
+- [x] Commit Cargo.lock for dependency reproducibility.
 - [x] Add CI for formatting and UEFI target compilation.
 - [x] Document the reference-hardware test matrix.
 
