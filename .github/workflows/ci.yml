@@ -34,3 +34,11 @@ jobs:
 
       - name: Build and boot in QEMU/OVMF
         run: sh scripts/test-qemu.sh
+
+      - name: Upload bootable EFI application
+        uses: actions/upload-artifact@v4
+        with:
+          name: everest-os-uefi-boot
+          path: dist/EFI/BOOT/BOOTX64.EFI
+          if-no-files-found: error
+          retention-days: 14
