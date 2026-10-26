@@ -2,7 +2,7 @@
 
 **Everest OS** is an independent operating-system project being implemented from scratch, primarily in Rust. The first target is real x86-64 PCs booting through UEFI; virtual machines are a test environment, not the product target. AArch64 support is planned after the initial x86-64 foundation stabilizes.
 
-> **Current status:** first implementation milestone. The repository contains the project design and the initial UEFI firmware bring-up application. This is not yet a standalone kernel, desktop OS, or release-ready boot image. Hardware support is unverified until tested on named physical machines.
+> **Current status:** first implementation milestone. The repository now contains a Rust UEFI application and an early kernel entry linked into the same EFI executable. CI compiles the current code; QEMU and physical-PC boot are not yet verified.
 
 ## Project principles
 
@@ -13,9 +13,11 @@
 - **Security by design:** isolate userspace from the kernel, use least privilege, and require permission for sensitive automated actions.
 - **Evidence over claims:** a feature is supported only after a reproducible test or documented physical-device verification.
 
-## First milestone
+## First implementation milestone
 
-The first implementation step is a small UEFI application that can be built as an x86-64 EFI executable and copied to the standard removable-media path. It establishes the build pipeline and framebuffer bring-up on UEFI systems. This is a firmware-stage bring-up program, **not yet the Everest kernel**. The next milestone will establish the kernel handoff and boot information contract.
+The UEFI application discovers the Graphics Output Protocol (GOP), draws an Everest splash screen, records framebuffer metadata, exits UEFI boot services, and transfers control to a small kernel entry linked into the same EFI image. The kernel draws a status screen and halts with maskable interrupts disabled.
+
+This is an early kernel handoff, not yet a usable operating system. The kernel does not yet parse the full memory map, establish its own page tables or interrupt handlers, manage memory, run processes, or drive devices. Physical and QEMU boot tests remain open.
 
 ## Planned system layers
 
@@ -39,7 +41,7 @@ No universal compatibility promise is made. Initial hardware targets must be doc
 - docs/HARDWARE.md — reference-hardware and test matrix.
 - docs/BUILDING.md — toolchain and build instructions.
 - boot/ — initial UEFI application and future kernel handoff.
-- kernel/ — kernel implementation, to be introduced after the boot contract.
+- kernel/ — initial no_std kernel entry; core services are not implemented yet.
 - scripts/ — build and image preparation helpers.
 - .github/workflows/ — reproducible CI checks.
 
