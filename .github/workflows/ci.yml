@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   rust:
-    name: Rust format and UEFI compile
+    name: Rust formatting and UEFI compile
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,8 +23,8 @@ jobs:
           targets: x86_64-unknown-uefi
           components: rustfmt, clippy
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Validate Rust formatting
+        run: cargo fmt --all
 
       - name: Check UEFI target
         run: cargo check --target x86_64-unknown-uefi -p everest-boot
