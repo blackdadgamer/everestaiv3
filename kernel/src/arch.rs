@@ -197,23 +197,6 @@ unsafe extern "C" {
     fn everest_isr_31();
 }
 
-fn exception_stub(vector: usize) -> u64 {
-    // All 32 entries are explicitly linked above; index is bounded by caller.
-    let stubs: [unsafe extern "C" fn(); 32] = unsafe {
-        [
-            everest_isr_0, everest_isr_1, everest_isr_2, everest_isr_3,
-            everest_isr_4, everest_isr_5, everest_isr_6, everest_isr_7,
-            everest_isr_8, everest_isr_9, everest_isr_10, everest_isr_11,
-            everest_isr_12, everest_isr_13, everest_isr_14, everest_isr_15,
-            everest_isr_16, everest_isr_17, everest_isr_18, everest_isr_19,
-            everest_isr_20, everest_isr_21, everest_isr_22, everest_isr_23,
-            everest_isr_24, everest_isr_25, everest_isr_26, everest_isr_27,
-            everest_isr_28, everest_isr_29, everest_isr_30, everest_isr_31,
-        ]
-    };
-    stubs[vector] as usize as u64
-}
-
 /// Build page tables from allocator-owned physical frames and switch CR3.
 ///
 /// # Safety
@@ -276,14 +259,14 @@ unsafe fn install_idt() {
     let mut code_selector: u16;
     unsafe { asm!("mov {0:x}, cs", out(reg) code_selector, options(nomem, nostack, preserves_flags)) };
     let stubs = [
-        everest_isr_0 as usize, everest_isr_1 as usize, everest_isr_2 as usize, everest_isr_3 as usize,
-        everest_isr_4 as usize, everest_isr_5 as usize, everest_isr_6 as usize, everest_isr_7 as usize,
-        everest_isr_8 as usize, everest_isr_9 as usize, everest_isr_10 as usize, everest_isr_11 as usize,
-        everest_isr_12 as usize, everest_isr_13 as usize, everest_isr_14 as usize, everest_isr_15 as usize,
-        everest_isr_16 as usize, everest_isr_17 as usize, everest_isr_18 as usize, everest_isr_19 as usize,
-        everest_isr_20 as usize, everest_isr_21 as usize, everest_isr_22 as usize, everest_isr_23 as usize,
-        everest_isr_24 as usize, everest_isr_25 as usize, everest_isr_26 as usize, everest_isr_27 as usize,
-        everest_isr_28 as usize, everest_isr_29 as usize, everest_isr_30 as usize, everest_isr_31 as usize,
+        everest_isr_0 as *const () as usize, everest_isr_1 as *const () as usize, everest_isr_2 as *const () as usize, everest_isr_3 as *const () as usize,
+        everest_isr_4 as *const () as usize, everest_isr_5 as *const () as usize, everest_isr_6 as *const () as usize, everest_isr_7 as *const () as usize,
+        everest_isr_8 as *const () as usize, everest_isr_9 as *const () as usize, everest_isr_10 as *const () as usize, everest_isr_11 as *const () as usize,
+        everest_isr_12 as *const () as usize, everest_isr_13 as *const () as usize, everest_isr_14 as *const () as usize, everest_isr_15 as *const () as usize,
+        everest_isr_16 as *const () as usize, everest_isr_17 as *const () as usize, everest_isr_18 as *const () as usize, everest_isr_19 as *const () as usize,
+        everest_isr_20 as *const () as usize, everest_isr_21 as *const () as usize, everest_isr_22 as *const () as usize, everest_isr_23 as *const () as usize,
+        everest_isr_24 as *const () as usize, everest_isr_25 as *const () as usize, everest_isr_26 as *const () as usize, everest_isr_27 as *const () as usize,
+        everest_isr_28 as *const () as usize, everest_isr_29 as *const () as usize, everest_isr_30 as *const () as usize, everest_isr_31 as *const () as usize,
     ];
     let idt_ptr = ptr::addr_of_mut!(IDT).cast::<IdtEntry>();
     for (vector, address) in stubs.iter().enumerate() {
@@ -366,11 +349,16 @@ mod tests {
     fn idt_gate_encodes_handler_address_and_selector() {
         let address = 0x1234_5678_9abc_def0;
         let entry = IdtEntry::interrupt_gate(address, 0x38);
-        assert_eq!(entry.offset_low, 0xdef0);
-        assert_eq!(entry.selector, 0x38);
-        assert_eq!(entry.options, 0x8e00);
-        assert_eq!(entry.offset_middle, 0x9abc);
-        assert_eq!(entry.offset_high, 0x1234_5678);
+        let offset_low = entry.offset_low;
+        let selector = entry.selector;
+        let options = entry.options;
+        let offset_middle = entry.offset_middle;
+        let offset_high = entry.offset_high;
+        assert_eq!(offset_low, 0xdef0);
+        assert_eq!(selector, 0x38);
+        assert_eq!(options, 0x8e00);
+        assert_eq!(offset_middle, 0x9abc);
+        assert_eq!(offset_high, 0x1234_5678);
     }
 
     #[test]
