@@ -219,7 +219,7 @@ fn exception_stub(vector: usize) -> u64 {
 /// # Safety
 /// Caller must have disabled maskable interrupts and must provide an allocator
 /// whose page-table frames are writable through the current firmware mapping.
-pub unsafe fn initialize(boot_info: &'static BootInfo, allocator: &mut crate::memory::FrameAllocator<'_>) -> Result<(), &'static str> {
+pub unsafe fn initialize(boot_info: &BootInfo, allocator: &mut crate::memory::FrameAllocator<'_>) -> Result<(), &'static str> {
     if boot_info.kernel_image_start >= IDENTITY_MAP_LIMIT
         || boot_info.kernel_image_start.checked_add(boot_info.kernel_image_size).is_none_or(|end| end > IDENTITY_MAP_LIMIT)
         || (boot_info as *const BootInfo as u64) >= IDENTITY_MAP_LIMIT
@@ -265,7 +265,7 @@ pub unsafe fn initialize(boot_info: &'static BootInfo, allocator: &mut crate::me
 
     // Exercise the installed IDT and common assembly entry path on every boot.
     // The breakpoint handler records success and returns with IRETQ.
-    unsafe { asm!("int3", options(nomem, nostack)) };
+    unsafe { asm!("int3") };
     if BREAKPOINT_COUNT.load(Ordering::Acquire) != 1 {
         return Err("IDT breakpoint self-test failed");
     }
