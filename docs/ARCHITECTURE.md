@@ -1,6 +1,6 @@
 # Everest OS — Architecture
 
-**Status:** implementation in progress; first milestone is UEFI firmware bring-up  
+**Status:** implementation in progress; early kernel handoff code is committed  
 **Implementation language:** Rust-first, with documented assembly only when required  
 **First physical target:** x86-64 PC with UEFI firmware and a supported GOP framebuffer  
 **Test target:** QEMU/OVMF plus physical hardware; emulation supplements physical testing  
@@ -19,15 +19,17 @@
 
 ### Stage A — UEFI bring-up application
 
-The first implementation is a Rust UEFI executable. It validates the toolchain and removable-media boot path, discovers the Graphics Output Protocol (GOP), and draws a simple Everest splash screen. It is a firmware-stage application, not a standalone kernel and not yet a complete OS.
+The Rust UEFI executable discovers the Graphics Output Protocol (GOP) and draws an Everest splash screen. It validates the framebuffer geometry and currently supports RGB/BGR pixel layouts. If the display path is unsupported, it emits a firmware-console diagnostic and returns to firmware.
 
-### Stage B — Everest kernel handoff
+### Stage B — early kernel handoff (implemented, not hardware-verified)
 
-Add an explicit boot contract that carries the UEFI memory map, framebuffer description, ACPI table pointers where available, and firmware metadata. The boot path must acquire all needed boot data before exiting UEFI boot services. The kernel must not rely on firmware services after that handoff.
+The EFI image contains an early no_std kernel entry. The boot application creates a framebuffer-only BootInfo structure, releases its GOP protocol handle, exits UEFI boot services, and calls the kernel entry. The kernel draws a status screen, masks normal interrupts, and halts. The UEFI memory-map owner remains alive, but the kernel does not yet parse or use the map for allocation.
 
-### Stage C — kernel entry and diagnostics
+This is a real handoff into code that no longer calls UEFI boot services, but it is not yet a complete kernel. It still uses the firmware's existing CPU state and page-table mapping.
 
-Enter the kernel with a documented architecture-specific calling convention, establish early serial logging where hardware permits, validate the boot information structure, and halt safely on invalid state. Keep the boot path observable on physical devices that do not have a working graphics driver.
+### Stage C — kernel foundations
+
+Next, extend the boot contract to carry a parsed memory map, ACPI table pointers where available, and firmware metadata. Add early diagnostics, exception handling, and safe memory-map validation. The kernel must not rely on firmware services after handoff.
 
 ## 3. Kernel architecture
 
@@ -85,8 +87,8 @@ AI system actions must use a narrow broker interface. The AI service may request
 - Never automatically write an image to a physical disk. Image-writing must require a clearly named target and explicit confirmation.
 - Keep test evidence and known limitations alongside each milestone.
 
-## 9. First milestone acceptance criteria
+## 9. First boot milestone acceptance criteria
 
-The UEFI bring-up milestone is complete only when the x86-64 EFI executable builds reproducibly, a script places it at EFI/BOOT/BOOTX64.EFI, it boots in QEMU/OVMF and on at least one physical reference PC, and the splash appears on a supported GOP framebuffer or a clear fallback diagnostic is emitted. The exact test machines, firmware settings, and limitations must be documented.
+The first boot milestone is complete only when the x86-64 EFI executable builds reproducibly, a script places it at EFI/BOOT/BOOTX64.EFI, and it boots in QEMU/OVMF and on at least one physical reference PC. On supported GOP hardware, the splash and early-kernel status screens must appear. The exact test machines, firmware settings, and limitations must be documented.
 
-This milestone proves only firmware-stage boot and framebuffer bring-up. It does not prove that a standalone kernel, desktop, storage, networking, audio, Bluetooth, Wi-Fi, or AI integration is complete.
+The current code includes an early kernel handoff but does not yet establish its own page tables, parse the memory map, install an IDT, allocate memory, run processes, or provide device drivers. Physical and emulator boot verification remains outstanding.
