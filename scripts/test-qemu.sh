@@ -56,7 +56,7 @@ qemu-system-x86_64 \
     -drive "if=pflash,format=raw,file=$VARS_COPY" \
     -device qemu-xhci,id=xhci \
     -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
-    -device usb-storage,bus=xhci.0,drive=usb \
+    -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \
     -display none \
     -monitor "unix:$MONITOR,server,nowait" \
     -serial none \
@@ -78,9 +78,13 @@ fi
 
 # The firmware splash is shown briefly, then the early kernel status screen
 # remains visible. Capture the display after the handoff window.
-sleep 5
+sleep 8
 printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
 wait "$QEMU_PID" || true
 QEMU_PID=""
 
-python3 scripts/check-qemu-screen.py "$SCREEN"
+if ! python3 scripts/check-qemu-screen.py "$SCREEN"; then
+    printf 'QEMU diagnostic log follows:\n' >&2
+    cat "$TMP_DIR/qemu.log" >&2
+    exit 1
+fi
