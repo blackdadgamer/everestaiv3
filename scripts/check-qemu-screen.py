@@ -27,16 +27,20 @@ def main() -> int:
         )
         return 1
 
-    # This unique color is used only for the independent page-table + IDT status.
+    # Unique color used only for the independent page-table + IDT status.
     expected = bytes((110, 190, 255))
-    count = sum(
-        1
-        for offset in range(0, len(pixels), 3)
-        if pixels[offset:offset + 3] == expected
-    )
+    reverse_expected = bytes((255, 190, 110))
+    old_kernel_status = bytes((118, 222, 190))
+    exception_status = bytes((255, 120, 145))
+    colors = [pixels[offset:offset + 3] for offset in range(0, len(pixels), 3)]
+    count = sum(color == expected or color == reverse_expected for color in colors)
+    old_count = sum(color == old_kernel_status for color in colors)
+    exception_count = sum(color == exception_status for color in colors)
     if count < 10:
         print(
-            f"No independent page tables/IDT status detected ({count} diagnostic pixels in {width}x{height}).",
+            f"No independent page tables/IDT status detected ({count} expected pixels; "
+            f"{old_count} legacy kernel-status pixels; {exception_count} exception pixels "
+            f"in {width}x{height}).",
             file=sys.stderr,
         )
         return 1
