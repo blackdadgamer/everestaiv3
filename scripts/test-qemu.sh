@@ -11,9 +11,16 @@ for command_name in qemu-system-x86_64 mkfs.vfat mmd mcopy socat python3; do
     fi
 done
 
-EFI_CODE="$(find /usr/share/OVMF -type f \( -name 'OVMF_CODE.fd' -o -name 'OVMF_CODE_4M.fd' \) -print -quit 2>/dev/null || true)"
-if [ -z "$EFI_CODE" ]; then
-    printf 'Could not find OVMF_CODE.fd under /usr/share/OVMF.\n' >&2
+EFI_CODE=""
+EFI_VARS=""
+if [ -f /usr/share/OVMF/OVMF_CODE.fd ] && [ -f /usr/share/OVMF/OVMF_VARS.fd ]; then
+    EFI_CODE="/usr/share/OVMF/OVMF_CODE.fd"
+    EFI_VARS="/usr/share/OVMF/OVMF_VARS.fd"
+elif [ -f /usr/share/OVMF/OVMF_CODE_4M.fd ] && [ -f /usr/share/OVMF/OVMF_VARS_4M.fd ]; then
+    EFI_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
+    EFI_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
+else
+    printf 'Could not find a matching OVMF CODE/VARS pair under /usr/share/OVMF.\n' >&2
     exit 2
 fi
 
@@ -33,6 +40,8 @@ trap cleanup EXIT INT TERM
 USB_IMAGE="$TMP_DIR/everest-usb.img"
 MONITOR="$TMP_DIR/qemu-monitor.sock"
 SCREEN="$TMP_DIR/everest-screen.ppm"
+VARS_COPY="$TMP_DIR/OVMF_VARS.fd"
+cp "$EFI_VARS" "$VARS_COPY"
 
 truncate -s 64M "$USB_IMAGE"
 mkfs.vfat "$USB_IMAGE" >/dev/null
@@ -44,7 +53,10 @@ qemu-system-x86_64 \
     -machine q35 \
     -m 512M \
     -drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE" \
-    -drive "format=raw,file=$USB_IMAGE" \
+    -drive "if=pflash,format=raw,file=$VARS_COPY" \
+    -device qemu-xhci,id=xhci \
+    -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
+    -device usb-storage,bus=xhci.0,drive=usb \
     -display none \
     -monitor "unix:$MONITOR,server,nowait" \
     -serial none \
