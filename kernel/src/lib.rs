@@ -2,6 +2,7 @@
 
 pub mod arch;
 pub mod memory;
+pub mod interrupts;
 
 use core::{mem, ptr};
 
@@ -96,6 +97,10 @@ pub fn kernel_main(info: &BootInfo) -> ! {
         false
     };
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
+    if virtual_memory_ready {
+        unsafe { interrupts::initialize(); }
+        unsafe { core::arch::asm!("sti", options(nomem, nostack)); }
+    }
 
     loop {
         unsafe {
