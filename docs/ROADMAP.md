@@ -13,7 +13,7 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 
 **Exit criteria:** clean checkout has a documented build process and repeatable CI checks.
 
-## M1 — UEFI firmware bring-up
+## M1 — UEFI boot and splash
 
 - [x] Build an x86-64 UEFI application in Rust.
 - [x] Discover GOP and validate framebuffer geometry/format.
@@ -22,17 +22,17 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 - [ ] Boot in QEMU/OVMF.
 - [ ] Boot from a disposable USB on one documented physical UEFI PC.
 
-**Exit criteria:** repeatable EFI artifact and verified firmware-stage boot on both emulated and physical hardware. This is not yet the standalone kernel. Code has been committed but not yet compiled or hardware-tested in this environment; checkboxes for test items remain open.
+**Exit criteria:** repeatable EFI artifact and verified early-kernel boot on both emulated and physical hardware. The splash and kernel status screen are implemented, but QEMU and physical-PC boot tests remain open.
 
 ## M2 — Kernel handoff and early diagnostics
 
-- [ ] Define and version the boot information structure.
-- [ ] Capture framebuffer metadata, UEFI memory map, and ACPI pointers.
-- [ ] Implement kernel entry and safe UEFI boot-services exit.
+- [x] Define an initial framebuffer-only boot information structure.
+- [ ] Extend the boot information structure with parsed UEFI memory-map and ACPI data.
+- [x] Implement an early kernel entry and UEFI boot-services exit.
 - [ ] Add serial/early logging and panic diagnostics.
 - [ ] Validate all boot data before use.
 
-**Exit criteria:** kernel reaches its own entry point on the reference PC and QEMU and reports a verifiable milestone.
+**Exit criteria:** kernel reaches its entry point on the reference PC and QEMU and reports a verifiable milestone. Entry/handoff code is committed; hardware and emulator execution are not yet verified.
 
 ## M3 — CPU, memory and interrupt foundations
 
