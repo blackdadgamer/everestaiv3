@@ -4,7 +4,7 @@ fmt:
 	cargo fmt --all
 
 check:
-	cargo check --target x86_64-unknown-uefi -p everest-boot
+	cargo check --locked --target x86_64-unknown-uefi -p everest-boot
 
 build-uefi:
 	sh scripts/build-uefi.sh
