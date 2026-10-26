@@ -1,0 +1,7 @@
+/target/
+/dist/
+/build/
+*.img
+*.iso
+*.efi
+.DS_Store
