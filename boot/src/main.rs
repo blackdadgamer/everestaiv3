@@ -80,7 +80,7 @@ fn main() -> Status {
 
     // UEFI services are no longer available after this call. The returned memory
     // map owner is deliberately kept alive while the early kernel is running.
-    let _memory_map = unsafe { boot::exit_boot_services(None) };
+    let _memory_map = unsafe { boot::exit_boot_services(boot::MemoryType::LOADER_DATA) };
     kernel_main(&boot_info)
 }
 
