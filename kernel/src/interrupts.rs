@@ -102,7 +102,7 @@ pub unsafe fn initialize(){
         // Unmask PIT IRQ0 and keyboard IRQ1 only.
         outb(0x21,0xFC); outb(0xA1,0xFF);
         // PIT channel 0, square wave, approximately 100 Hz.
-        outb(0x43,0x36); outb(0x40,11932 as u8); outb(0x40,(11932u16 >> 8) as u8);
+        outb(0x43,0x36); outb(0x40,(11932u16 & 0xff) as u8); outb(0x40,(11932u16 >> 8) as u8);
         // Enable keyboard IRQ; discard stale output byte if present.
         let _ = inb(0x60);
     }
