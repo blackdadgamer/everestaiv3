@@ -135,8 +135,8 @@ global_asm!(
         push r15
 
         mov r12, rsp
-        // UEFI's x86-64 C ABI is Microsoft x64: RCX, RDX, R8 arguments
-        // and 32 bytes of caller-reserved shadow space.
+        # UEFI's x86-64 C ABI is Microsoft x64: RCX, RDX, R8 arguments
+        # and 32 bytes of caller-reserved shadow space.
         mov rcx, [r12 + 120]
         mov rdx, [r12 + 128]
         mov r8,  [r12 + 136]
