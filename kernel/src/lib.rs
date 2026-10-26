@@ -24,10 +24,15 @@ pub struct BootInfo {
 /// existing CPU state and framebuffer mapping; it does not yet initialize its
 /// own page tables, interrupt controllers, scheduler, or device drivers.
 pub fn kernel_main(info: &BootInfo) -> ! {
+    // No IDT or interrupt-controller setup exists yet. Mask normal interrupts
+    // before entering the idle loop so firmware interrupt handlers are not used.
+    unsafe {
+        core::arch::asm!("cli", options(nomem, nostack));
+    }
+
     draw_kernel_status(info);
+
     loop {
-        // No scheduler or interrupt subsystem exists yet. Halt until an interrupt
-        // arrives, then re-enter the loop. This is a deliberate bring-up idle loop.
         unsafe {
             core::arch::asm!("hlt", options(nomem, nostack, preserves_flags));
         }
@@ -70,13 +75,12 @@ fn draw_kernel_status(info: &BootInfo) {
     );
 
     let note = b"EARLY KERNEL HANDOFF COMPLETE";
-    let note_scale = 1usize;
-    let note_width = note.len() * 6 * note_scale;
+    let note_width = note.len() * 6;
     draw_text(
         info,
         info.width.saturating_sub(note_width) / 2,
         info.height * 2 / 5 + 23 * scale,
-        note_scale,
+        1,
         note,
         (130, 153, 206),
     );
