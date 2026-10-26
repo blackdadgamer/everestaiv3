@@ -23,22 +23,24 @@ This roadmap is an ordered engineering plan, not a delivery-date promise. Physic
 - [x] Boot in QEMU/OVMF (automated CI screenshot check passed).
 - [ ] Boot from a disposable USB on one documented physical UEFI PC.
 
-**Exit criteria:** repeatable EFI artifact and verified early-kernel boot on both emulated and physical hardware. The QEMU/OVMF smoke test now passes in CI; physical-PC USB boot remains open.
+**Exit criteria:** repeatable EFI artifact and verified early-kernel boot on both emulated and physical hardware. The QEMU/OVMF smoke test passes in CI; physical-PC USB boot remains open.
 
 ## M2 — Kernel handoff and early diagnostics
 
-- [x] Define an initial framebuffer-only boot information structure.
-- [ ] Extend the boot information structure with parsed UEFI memory-map and ACPI data.
+- [x] Define the loader-to-kernel BootInfo contract.
+- [x] Pass framebuffer bounds and UEFI memory-map metadata to the kernel.
+- [x] Validate memory-map descriptor version, stride, bounds, and physical-region arithmetic.
 - [x] Implement an early kernel entry and UEFI boot-services exit.
+- [ ] Parse ACPI table pointers and firmware metadata.
 - [ ] Add serial/early logging and panic diagnostics.
-- [ ] Validate all boot data before use.
+- [ ] Add focused tests for malformed boot information.
 
-**Exit criteria:** kernel reaches its entry point on the reference PC and QEMU and reports a verifiable milestone. QEMU execution is verified; physical-PC execution is not yet verified.
+**Exit criteria:** kernel reaches its entry point on the reference PC and QEMU, validates boot data, and reports a verifiable milestone. QEMU execution is verified; physical-PC execution is not yet verified.
 
 ## M3 — CPU, memory and interrupt foundations
 
 - [ ] CPU exception handling and diagnostic dumps.
-- [ ] Physical page-frame allocator.
+- [ ] Physical page-frame allocator built from validated usable memory regions.
 - [ ] Virtual memory mappings and page-fault handling.
 - [ ] Kernel heap with tests.
 - [ ] Timer and interrupt-controller support.

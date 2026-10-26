@@ -6,6 +6,7 @@ use core::ptr;
 use everest_kernel::{kernel_main, BootInfo, PixelFormat as KernelPixelFormat};
 use uefi::prelude::*;
 use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
+use uefi::mem::memory_map::MemoryMap;
 
 #[entry]
 fn main() -> Status {
@@ -62,25 +63,32 @@ fn main() -> Status {
         PixelFormat::Bgr => KernelPixelFormat::Bgr,
         _ => return Status::UNSUPPORTED,
     };
-    let base = framebuffer.as_mut_ptr();
-    let boot_info = BootInfo {
-        framebuffer: base,
-        width,
-        height,
-        stride,
-        pixel_format: kernel_pixel_format,
-    };
+    let framebuffer_base = framebuffer.as_mut_ptr();
 
-    draw_splash(base, stride, width, height, format);
+    draw_splash(framebuffer_base, stride, width, height, format);
     drop(framebuffer);
     drop(gop);
 
     // Leave enough time for a physical-device camera/photo test, then take over.
     let _ = boot::stall(1_500_000);
 
-    // UEFI services are no longer available after this call. The returned memory
-    // map owner is deliberately kept alive while the early kernel is running.
-    let _memory_map = unsafe { boot::exit_boot_services(boot::MemoryType::LOADER_DATA) };
+    // Keep the returned memory-map owner alive for the entire kernel entry.
+    // Its backing buffer contains the descriptors returned by ExitBootServices.
+    let memory_map = unsafe { boot::exit_boot_services(boot::MemoryType::LOADER_DATA) };
+    let memory_map_meta = memory_map.meta();
+    let boot_info = BootInfo {
+        framebuffer: framebuffer_base,
+        framebuffer_size: stride.saturating_mul(height).saturating_mul(4),
+        width,
+        height,
+        stride,
+        pixel_format: kernel_pixel_format,
+        memory_map: memory_map.buffer().as_ptr(),
+        memory_map_size: memory_map_meta.map_size,
+        memory_descriptor_size: memory_map_meta.desc_size,
+        memory_descriptor_version: memory_map_meta.desc_version,
+    };
+
     kernel_main(&boot_info)
 }
 

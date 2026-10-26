@@ -1,6 +1,6 @@
 #![no_std]
 
-use core::ptr;
+use core::{mem, ptr};
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -9,28 +9,57 @@ pub enum PixelFormat {
     Bgr = 1,
 }
 
+/// Shared boot contract populated by the UEFI loader.
+///
+/// The memory-map buffer is owned by the loader's MemoryMapOwned value. The
+/// loader must keep that owner alive for the full duration of kernel_main.
 #[repr(C)]
 pub struct BootInfo {
     pub framebuffer: *mut u8,
+    pub framebuffer_size: usize,
     pub width: usize,
     pub height: usize,
     pub stride: usize,
     pub pixel_format: PixelFormat,
+    pub memory_map: *const u8,
+    pub memory_map_size: usize,
+    pub memory_descriptor_size: usize,
+    pub memory_descriptor_version: u32,
 }
+
+/// UEFI x86-64 MemoryDescriptor v1 layout.
+///
+/// Do not walk descriptors using size_of alone: firmware may report a larger
+/// descriptor stride. The stride from BootInfo is used for every entry.
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct UefiMemoryDescriptor {
+    memory_type: u32,
+    _padding: u32,
+    physical_start: u64,
+    _virtual_start: u64,
+    page_count: u64,
+    _attributes: u64,
+}
+
+const UEFI_MEMORY_DESCRIPTOR_VERSION: u32 = 1;
+const UEFI_PAGE_SIZE: u64 = 4096;
+const MAX_MEMORY_MAP_BYTES: usize = 64 * 1024 * 1024;
 
 /// Entry reached only after the UEFI boot services have been exited.
 ///
-/// This is an intentionally small first kernel milestone. It uses the firmware's
-/// existing CPU state and framebuffer mapping; it does not yet initialize its
-/// own page tables, interrupt controllers, scheduler, or device drivers.
+/// This milestone validates the boot contract and walks the UEFI memory map.
+/// It deliberately does not allocate physical pages yet; that is the next
+/// memory-management milestone.
 pub fn kernel_main(info: &BootInfo) -> ! {
-    // No IDT or interrupt-controller setup exists yet. Mask normal interrupts
-    // before entering the idle loop so firmware interrupt handlers are not used.
     unsafe {
+        // No IDT or interrupt-controller setup exists yet. Do not allow maskable
+        // interrupts to arrive before the kernel installs its own handlers.
         core::arch::asm!("cli", options(nomem, nostack));
     }
 
-    draw_kernel_status(info);
+    let memory_map_valid = validate_memory_map(info);
+    draw_kernel_status(info, memory_map_valid);
 
     loop {
         unsafe {
@@ -39,11 +68,58 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     }
 }
 
-fn draw_kernel_status(info: &BootInfo) {
+fn validate_memory_map(info: &BootInfo) -> bool {
+    if info.memory_map.is_null()
+        || info.memory_map_size == 0
+        || info.memory_map_size > MAX_MEMORY_MAP_BYTES
+        || info.memory_descriptor_version != UEFI_MEMORY_DESCRIPTOR_VERSION
+        || info.memory_descriptor_size < mem::size_of::<UefiMemoryDescriptor>()
+        || info.memory_map_size % info.memory_descriptor_size != 0
+    {
+        return false;
+    }
+
+    let descriptor_count = info.memory_map_size / info.memory_descriptor_size;
+    if descriptor_count == 0 {
+        return false;
+    }
+
+    for index in 0..descriptor_count {
+        let Some(offset) = index.checked_mul(info.memory_descriptor_size) else {
+            return false;
+        };
+        // SAFETY: the loader passes a live memory-map buffer and the bounds
+        // above ensure each descriptor's fixed v1 prefix lies within it.
+        let descriptor = unsafe {
+            ptr::read_unaligned(
+                info.memory_map
+                    .add(offset)
+                    .cast::<UefiMemoryDescriptor>(),
+            )
+        };
+
+        let Some(region_size) = descriptor.page_count.checked_mul(UEFI_PAGE_SIZE) else {
+            return false;
+        };
+        if descriptor
+            .physical_start
+            .checked_add(region_size)
+            .is_none()
+        {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn draw_kernel_status(info: &BootInfo, memory_map_valid: bool) {
     if info.framebuffer.is_null()
         || info.width < 320
         || info.height < 200
         || info.stride < info.width
+        || info.stride.checked_mul(info.height).and_then(|v| v.checked_mul(4))
+            .is_none_or(|required| required > info.framebuffer_size)
     {
         return;
     }
@@ -84,6 +160,21 @@ fn draw_kernel_status(info: &BootInfo) {
         note,
         (130, 153, 206),
     );
+
+    let memory_status: &[u8] = if memory_map_valid {
+        b"UEFI MEMORY MAP VALIDATED"
+    } else {
+        b"UEFI MEMORY MAP INVALID"
+    };
+    let memory_status_width = memory_status.len() * 6;
+    draw_text(
+        info,
+        info.width.saturating_sub(memory_status_width) / 2,
+        info.height * 2 / 5 + 34 * scale,
+        1,
+        memory_status,
+        if memory_map_valid { (118, 222, 190) } else { (255, 120, 120) },
+    );
 }
 
 fn put_pixel(info: &BootInfo, x: usize, y: usize, color: (u8, u8, u8)) {
@@ -91,7 +182,17 @@ fn put_pixel(info: &BootInfo, x: usize, y: usize, color: (u8, u8, u8)) {
         return;
     }
 
-    let offset = (y * info.stride + x) * 4;
+    let Some(offset) = y
+        .checked_mul(info.stride)
+        .and_then(|row| row.checked_add(x))
+        .and_then(|pixel| pixel.checked_mul(4))
+    else {
+        return;
+    };
+    if offset.checked_add(4).is_none_or(|end| end > info.framebuffer_size) {
+        return;
+    }
+
     unsafe {
         let pixel = info.framebuffer.add(offset);
         let (red, green, blue) = color;
@@ -137,8 +238,8 @@ fn draw_text(
                 if bits & (1 << (4 - col)) != 0 {
                     fill_rect(
                         info,
-                        cursor_x + col * scale,
-                        y + row * scale,
+                        cursor_x.saturating_add(col.saturating_mul(scale)),
+                        y.saturating_add(row.saturating_mul(scale)),
                         scale,
                         scale,
                         color,
