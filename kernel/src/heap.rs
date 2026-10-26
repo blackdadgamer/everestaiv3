@@ -11,6 +11,7 @@ static FRAMES: AtomicPtr<FrameAllocator<'static>> = AtomicPtr::new(ptr::null_mut
 static LOCK: AtomicBool = AtomicBool::new(false);
 
 pub struct FrameHeap;
+#[cfg(target_os = "uefi")]
 #[global_allocator]
 static GLOBAL: FrameHeap = FrameHeap;
 
