@@ -13,6 +13,7 @@ jobs:
   rust:
     name: Rust formatting, UEFI compile and QEMU boot
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +34,7 @@ jobs:
         run: cargo test --locked -p everest-kernel
 
       - name: Install QEMU/OVMF test tools
-        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 ovmf dosfstools mtools socat
+        run: sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 && sudo apt-get install -y qemu-system-x86 ovmf dosfstools mtools socat
 
       - name: Build and boot in QEMU/OVMF
         run: sh scripts/test-qemu.sh
