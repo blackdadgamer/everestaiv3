@@ -1,137 +1,127 @@
-# Everest AI OS — Roadmap
+# Everest OS — Roadmap
 
-This roadmap is milestone-based, not a promise of dates. Each phase depends on tests from the previous phase.
+This roadmap is an ordered engineering plan, not a delivery-date promise. Physical PCs are the product target from day one. QEMU/OVMF is used for repeatable tests and must not replace physical-device validation.
 
-## M0 — Repository and design baseline
-- [x] Create initial architecture and roadmap documents.
-- [ ] Add Rust workspace and pinned toolchain.
-- [ ] Document coding style, unsafe-code policy, license policy, and contribution workflow.
-- [ ] Add CI for formatting, linting, unit tests, and build checks.
+## M0 — Project baseline
 
-**Exit criteria:** clean checkout has a reproducible build pipeline and no undocumented generated artifacts.
+- [x] Establish project principles and initial architecture.
+- [x] Rename the project consistently to Everest OS.
+- [x] Define physical-PC-first testing and safe image-writing policy.
+- [x] Pin the Rust stable toolchain and create a workspace.
+- [x] Add CI for formatting and UEFI target compilation.
+- [x] Document the reference-hardware test matrix.
 
-## M1 — First x86-64 boot
-- [ ] UEFI boot application and kernel entry.
-- [ ] Serial logger and panic handler.
-- [ ] Parse and validate boot information and memory map.
-- [ ] Initialize framebuffer and draw an Everest boot screen.
-- [ ] Build a disposable disk image and run it under QEMU/OVMF.
-- [ ] Automated serial-log smoke test.
+**Exit criteria:** clean checkout has a documented build process and repeatable CI checks.
 
-**Exit criteria:** CI can build and boot the kernel in QEMU and verify expected milestones.
+## M1 — UEFI firmware bring-up
 
-## M2 — Kernel foundations
+- [x] Build an x86-64 UEFI application in Rust.
+- [x] Discover GOP and validate framebuffer geometry/format.
+- [x] Draw an Everest splash screen with a fallback diagnostic.
+- [x] Add a script that creates the standard removable-media EFI path.
+- [ ] Boot in QEMU/OVMF.
+- [ ] Boot from a disposable USB on one documented physical UEFI PC.
+
+**Exit criteria:** repeatable EFI artifact and verified firmware-stage boot on both emulated and physical hardware. This is not yet the standalone kernel. Code has been committed but not yet compiled or hardware-tested in this environment; checkboxes for test items remain open.
+
+## M2 — Kernel handoff and early diagnostics
+
+- [ ] Define and version the boot information structure.
+- [ ] Capture framebuffer metadata, UEFI memory map, and ACPI pointers.
+- [ ] Implement kernel entry and safe UEFI boot-services exit.
+- [ ] Add serial/early logging and panic diagnostics.
+- [ ] Validate all boot data before use.
+
+**Exit criteria:** kernel reaches its own entry point on the reference PC and QEMU and reports a verifiable milestone.
+
+## M3 — CPU, memory and interrupt foundations
+
+- [ ] CPU exception handling and diagnostic dumps.
 - [ ] Physical page-frame allocator.
-- [ ] Virtual memory mappings and page-fault diagnostics.
-- [ ] Interrupts and timer.
+- [ ] Virtual memory mappings and page-fault handling.
 - [ ] Kernel heap with tests.
-- [ ] Basic keyboard input in emulation.
-- [ ] Panic diagnostics and debugging documentation.
+- [ ] Timer and interrupt-controller support.
+- [ ] Locking primitives and interrupt-safe rules.
 
-**Exit criteria:** memory/interrupt tests pass without corrupting kernel state.
+**Exit criteria:** memory and interrupt tests run without corrupting kernel state.
 
-## M3 — Native process model
+## M4 — Input and storage
+
+- [ ] Device discovery and driver lifecycle framework.
+- [ ] Keyboard/mouse support for the documented reference configuration.
+- [ ] Block-device interface and one supported storage path.
+- [ ] Read-only filesystem, then a native writable filesystem.
+- [ ] Safe shutdown/reboot and persistent logs.
+
+**Exit criteria:** input and storage work on the reference PC with documented tests.
+
+## M5 — Native processes and system services
+
 - [ ] User/kernel privilege separation.
-- [ ] Native syscall ABI.
+- [ ] Native syscall ABI and handle-based access.
 - [ ] Thread/process lifecycle and scheduler.
-- [ ] Handle-based file and device access.
 - [ ] IPC and permission checks.
-- [ ] Run a tiny native userspace test program.
+- [ ] Init/service manager and device manager.
+- [ ] Run a tiny native userspace program.
 
-**Exit criteria:** a test process can run and exit without compromising the kernel.
+**Exit criteria:** an isolated user program can start, use approved services, and exit safely.
 
-## M4 — Storage and basic userspace
-- [ ] Block-device abstraction and virtual storage driver.
-- [ ] VFS and initial filesystem support.
-- [ ] Init/service manager and logging service.
-- [ ] Shell and basic file utilities.
-- [ ] Image recovery and safe failure paths.
+## M6 — Graphics and desktop
 
-**Exit criteria:** kernel boots into a shell and can read/write a disposable filesystem image.
+- [ ] Framebuffer renderer and font rendering.
+- [ ] Input event service.
+- [ ] Surface/window abstraction and compositor/window manager.
+- [ ] Everest-branded shell, launcher, settings, and terminal.
+- [ ] Crash recovery and useful diagnostic UI.
 
-## M5 — AArch64 port
-- [ ] UEFI entry and handoff for AArch64.
-- [ ] Architecture-specific exception, interrupt, timer, and page-table setup.
-- [ ] Shared kernel subsystem tests.
-- [ ] QEMU AArch64 smoke test.
-- [ ] Document supported emulator profiles and known gaps.
+**Exit criteria:** user can interact with a stable minimal desktop on the reference PC.
 
-**Exit criteria:** AArch64 boots independently and passes the common kernel smoke tests. This does not imply support for all ARM64 devices.
+## M7 — Network and security foundation
 
-## M6 — Native desktop foundation
-- [ ] Framebuffer console and 2D rendering API.
-- [ ] Font/text rendering and input routing.
-- [ ] Compositor/window server.
-- [ ] Minimal shell, launcher, panels, settings, and workspaces.
-- [ ] Theme and keyboard customization.
-- [ ] Memory and frame-time baselines.
+- [ ] Network interfaces and packet-processing foundations.
+- [ ] One supported wired adapter, if available on the reference PC.
+- [ ] Address configuration, DNS, and TLS/HTTPS prerequisites.
+- [ ] User identity, credential storage, permissions, and audit events.
 
-**Exit criteria:** desktop launches reliably in the emulator and basic interactions work.
+**Exit criteria:** the reference system can securely reach a test endpoint with repeatable results.
 
-## M7 — Native developer platform
-- [ ] Native application manifest and package format.
-- [ ] Rust SDK and documented native ABI.
-- [ ] Terminal, editor/debugging integration, logs, and crash reports.
-- [ ] Package verification and rollback.
-- [ ] Basic networking in the emulator.
+## M8 — Audio, Wi-Fi and Bluetooth
 
-**Exit criteria:** developers can build, install, launch, inspect, and remove a native application.
+- [ ] Audio device model and output service for selected hardware.
+- [ ] Microphone capture where supported.
+- [ ] One explicitly supported Wi-Fi chipset and secure connection flow.
+- [ ] Bluetooth controller, discovery, pairing, and selected profiles.
+- [ ] Hardware compatibility matrix and regression tests.
 
-## M8 — ELF compatibility
-- [ ] Hardened ELF parser and loader.
-- [ ] Static native-ABI ELF support.
-- [ ] PIE/relocations and dynamic linker in later substeps.
-- [ ] Explicitly documented Linux ABI subset, if pursued.
-- [ ] Test corpus of binaries and libraries with per-feature results.
+**Exit criteria:** only devices that pass real physical tests are marked supported.
 
-**Exit criteria:** only documented ELF profiles are declared supported; unsupported binaries fail safely with clear diagnostics.
+## M9 — Everest integration
 
-## M9 — PE/COFF research and compatibility prototype
-- [ ] Safe PE parser and inspector.
-- [ ] Architecture and subsystem validation.
-- [ ] Small PE test executable using a defined Everest test ABI.
-- [ ] Import resolution and relocations.
-- [ ] Windows user-mode API compatibility roadmap and test harness.
-- [ ] App-by-app compatibility report.
+- [ ] Verify the actual Everest API contract and authentication.
+- [ ] Native chatbot UI with connection/error states and streaming where supported.
+- [ ] Permissioned action broker for a small set of safe system actions.
+- [ ] No long-lived API secrets embedded in the image.
+- [ ] Offline and service-unavailable behavior.
 
-**Exit criteria:** a limited PE prototype runs a known test program. This does not mean arbitrary Windows applications or games work.
+**Exit criteria:** chatbot works on a physical reference PC over a verified network connection.
 
-## M10 — Drivers, networking, and audio
-- [ ] PCI/PCIe enumeration and selected storage/network drivers.
-- [ ] USB HID and controller input.
-- [ ] Networking, DNS, TCP/UDP, and TLS plan.
-- [ ] Audio service and virtual-device tests.
-- [ ] Hardware support matrix and regression suite.
+## M10 — Hardening and physical-PC preview
 
-**Exit criteria:** each claimed device works on a named test configuration.
+- [ ] Boot/recovery documentation and disposable USB image workflow.
+- [ ] Reproducible build and integrity checks.
+- [ ] Test on more than one physical configuration.
+- [ ] Security review, failure handling, and known-issues list.
+- [ ] Publish a truthful developer-preview compatibility matrix.
 
-## M11 — Native Everest AI
-- [ ] User-space agent and UI.
-- [ ] Typed tool broker and permission policy.
-- [ ] Explicit confirmations for destructive/privileged actions.
-- [ ] Sandboxed execution and audit trail.
-- [ ] Model adapter with controllable network access.
-- [ ] Tests for prompt-injection-like untrusted input and authorization bypass.
+**Exit criteria:** a documented, recoverable developer preview; not a claim of universal PC support.
 
-**Exit criteria:** the agent can perform a small set of useful, authorized actions without having unrestricted kernel authority.
+## Later milestones — portability and compatibility
 
-## M12 — 3D graphics and gaming research
-- [ ] GPU/device inventory and driver research.
-- [ ] Graphics API and shader pipeline prototype.
-- [ ] GPU memory management and synchronization design.
-- [ ] Frame pacing, input latency, and audio latency benchmarks.
-- [ ] Selected game/launcher feasibility tests.
-- [ ] Per-title Epic Games and anti-cheat compatibility matrix.
+- AArch64 port after x86-64 interfaces stabilize.
+- Native SDK, package manager, and developer tooling.
+- Selected ELF ABI support and later .deb package workflows.
+- Chrome as a specific compatibility acceptance target, only when the required runtime and system interfaces exist.
+- Hands-free Everest voice interaction after audio and permissions are reliable.
+- GPU acceleration, broader drivers, performance work, and gaming compatibility.
 
-**Exit criteria:** claims are limited to hardware, APIs, launchers, and titles that have been tested. Universal compatibility is not an exit criterion.
-
-## Release gates
-A release requires:
-- reproducible build;
-- passing CI and emulator smoke tests;
-- documented limitations and supported hardware;
-- artifact checksum and version;
-- recovery guidance;
-- no claim of full Windows, Linux, Epic, or anti-cheat compatibility without evidence.
-
-**Important:** no milestone date is guaranteed. A custom desktop kernel and a Windows-compatible gaming environment are very different levels of effort; the latter is a long-term project.
+Windows executable compatibility and gaming are not part of the first kernel milestone. A file loader alone cannot provide the APIs, drivers, services, DRM, or anti-cheat behavior required by modern Windows applications and games.
