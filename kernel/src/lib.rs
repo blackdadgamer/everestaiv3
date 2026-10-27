@@ -292,6 +292,10 @@ fn draw_app_windows(info: &BootInfo) {
         fill_rect(info, x + 2, y + 2, w - 4, 42, TITLEBAR_BG);
         let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", _ => b"SETTINGS" };
         draw_text(info, x + 18, y + 15, 2, title, UI_WHITE);
+        if kind == 1 {
+            // Stable framebuffer marker used by the headless launcher regression test.
+            fill_rect(info, x + 8, y + 52, 1, 1, (80, 200, 160));
+        }
         if kind == 3 {
             draw_text(info, x + 24, y + 90, 2, b"Everest OS v1.0", FILE_TEXT);
             draw_text(info, x + 24, y + 140, 2, b"Created by Amit Pathak", FILE_TEXT);
@@ -415,6 +419,10 @@ fn draw_desktop(info: &BootInfo) {
     draw_text(info, 22, taskbar_y + 12, 1, b"START", UI_WHITE);
     draw_text(info, info.width.saturating_sub(58), taskbar_y + 12, 1, b"12:00", FILE_TEXT);
     if info.width >= 180 { fill_rect(info, info.width - 160, taskbar_y + 16, 4, 4, (110, 190, 255)); }
+    // Render app windows above the desktop/taskbar, then the launcher popup above
+    // both. Keep the cursor last so it remains visible over interactive surfaces.
+    draw_app_windows(info);
+    draw_start_menu(info);
     draw_mouse_cursor(info, CURSOR_X.load(Ordering::Relaxed), CURSOR_Y.load(Ordering::Relaxed));
 }
 
