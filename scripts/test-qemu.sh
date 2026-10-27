@@ -131,7 +131,7 @@ run_qemu() {
             sleep 0.4
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":false}}]}}\\r\\n'
             sleep 0.5
-        } | socat - "UNIX-CONNECT:$QMP" >/dev/null
+        } | socat -T 1 - "UNIX-CONNECT:$QMP" >/dev/null
     fi
 
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
