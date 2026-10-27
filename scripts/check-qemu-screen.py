@@ -65,6 +65,14 @@ def main() -> int:
     glyphs = {
         "A": [14, 17, 17, 31, 17, 17, 17],
         "E": [31, 16, 16, 30, 16, 16, 31],
+        "D": [30, 17, 17, 17, 17, 17, 30],
+        "I": [31, 4, 4, 4, 4, 4, 31],
+        "K": [17, 18, 20, 24, 20, 18, 17],
+        "O": [14, 17, 17, 17, 17, 17, 14],
+        "D": [30, 17, 17, 17, 17, 17, 30],
+        "I": [31, 4, 4, 4, 4, 4, 31],
+        "K": [17, 18, 20, 24, 20, 18, 17],
+        "O": [14, 17, 17, 17, 17, 17, 14],
         "M": [17, 27, 21, 21, 17, 17, 17],
         "N": [17, 25, 25, 21, 19, 19, 17],
         "R": [30, 17, 17, 30, 20, 18, 17],
@@ -127,10 +135,14 @@ def main() -> int:
         print("Taskbar clock was not rendered correctly.", file=sys.stderr)
         return 1
 
+    file_x, file_y = window_x + 24, window_y + 194
+    if not verify_text("EVEREST DISK OK", file_x, file_y, 1, (14, 20, 36)):
+        print("FAT32 HELLO.TXT contents were not rendered correctly.", file=sys.stderr)
+        return 1
+
     print(
         f"QEMU UEFI desktop passed: health marker={marker_count}; verified desktop "
-        f"background, taskbar, Start button, clock, and Everest Terminal window "
-        f"in the {width}x{height} framebuffer."
+        f"and FAT32 HELLO.TXT contents in the {width}x{height} framebuffer."
     )
     return 0
 

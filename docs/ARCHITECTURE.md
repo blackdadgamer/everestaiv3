@@ -107,3 +107,15 @@ The QEMU/OVMF smoke test sends the keyboard sequence needed to reach the desktop
 The Version 1.0 visual target is recorded at [`docs/desktop-shell-mockup.svg`](desktop-shell-mockup.svg). Treat it as a visual direction reference: any decorative iconography, window controls, or health-status wording shown in the mockup are illustrative unless separately implemented and asserted by the framebuffer test.
 
 Current limitations: no compositor, movable/resizable windows, functional Start menu, live clock, applications/process model, user-space GUI, or physical hardware verification. Continue to update the QEMU assertions when renderer behavior changes.
+
+## 11. Read-only block and FAT32 file access (early milestone)
+
+The kernel now has a small legacy ATA PIO driver for reading 512-byte sectors from the primary IDE master. The implementation uses bounded status polling and reports timeout/device errors instead of waiting forever. QEMU attaches a separate raw data disk using the IDE interface; this is intentionally distinct from the USB boot image.
+
+The read-only FAT32 reader validates the boot-sector signature and sector size, extracts FAT32 geometry, follows FAT cluster chains with bounds derived from the volume size, lists visible root-directory short names into caller-provided bounded storage, finds an 8.3 root entry, and reads its contents into a caller-provided buffer. The desktop boot path attempts to read `HELLO.TXT`; when successful, the terminal window displays the file bytes. The QEMU test creates a 64 MiB FAT32 image, copies in `HELLO.TXT` containing `EVEREST DISK OK`, attaches it to the virtual IDE controller, and checks those rendered glyphs in the screenshot.
+
+Scope and limitations:
+- This is legacy ATA PIO for the QEMU primary IDE master, not AHCI/SATA, NVMe, USB mass storage, or a general block-device abstraction.
+- File names are short 8.3 names; long-file-name entries are skipped.
+- Reads are read-only and bounded; there is no write support, caching, VFS, path traversal, subdirectory support, or general-purpose filesystem API.
+- The kernel still needs real hardware testing. A passing emulator test does not establish physical disk-controller compatibility.

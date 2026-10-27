@@ -2,7 +2,7 @@
 
 **Everest OS** is an independent operating-system project being implemented from scratch, primarily in Rust. The first target is real x86-64 PCs booting through UEFI; virtual machines are a test environment, not the product target. AArch64 support is planned after the initial x86-64 foundation stabilizes.
 
-> **Current status:** early kernel foundations plus a framebuffer-rendered desktop shell. The UEFI/QEMU/OVMF CI path passes, including screenshot assertions for the onboarding-to-desktop transition, dark background, bottom taskbar, `START` button, `12:00` clock, health marker, and bordered `Everest Terminal` window. Physical-PC boot and hardware compatibility remain unverified.
+> **Current status:** early kernel foundations, a framebuffer desktop shell, and a first read-only FAT32 file path are implemented. CI exercises Rust formatting/tests and QEMU/OVMF boot with a separate FAT32 data disk. Physical-PC boot and hardware compatibility remain unverified.
 
 ## Project principles
 
@@ -15,15 +15,13 @@
 
 ## Current desktop-shell milestone
 
-The onboarding flow can transition into a first pixel-rendered desktop shell. The shell has a solid dark navy background, a bottom taskbar, a bordered `START` button on the left, a fixed `12:00` clock on the right, a small blue kernel-health marker, and a centered bordered `Everest Terminal` window. The terminal window displays `Everest OS ready`, `Welcome,` and the username saved during onboarding. The current shell is a framebuffer drawing, not a full window manager: taskbar controls are not yet interactive, the clock is a placeholder, and window movement/resizing and physical display support are not implemented.
+The onboarding flow can transition into a first pixel-rendered desktop shell. The shell has a solid dark navy background, a bottom taskbar, a bordered `START` button on the left, a fixed `12:00` clock on the right, a small blue kernel-health marker, and a centered bordered `Everest Terminal` window. The terminal window displays `Everest OS ready`, the onboarding username, and the contents of `HELLO.TXT` read from a FAT32 data disk when one is present. The kernel includes a basic primary-master ATA PIO sector reader and a bounded, read-only FAT32 parser for boot-sector metadata, FAT chains, root-directory listing, and small file reads. The current driver targets legacy IDE PIO; it is not an AHCI driver and does not claim general SATA hardware support. The current shell is a framebuffer drawing, not a full window manager: taskbar controls are not yet interactive, the clock is a placeholder, and window movement/resizing and physical display support are not implemented.
 
 The visual direction for Version 1.0 is documented in [the desktop-shell mockup](docs/desktop-shell-mockup.svg). It is a design target; the SVG includes illustrative decoration that is not necessarily present in the current kernel renderer. The QEMU screenshot test verifies the actual simpler pixel output, not every decorative mockup detail.
 
 ## First implementation milestone
 
-The UEFI application discovers the Graphics Output Protocol (GOP), draws an Everest splash screen, records framebuffer metadata, exits UEFI boot services, and transfers control to a small kernel entry linked into the same EFI image. The kernel draws a status screen and halts with maskable interrupts disabled.
-
-This is an early kernel handoff, not yet a usable operating system. The kernel does not yet parse the full memory map, establish its own page tables or interrupt handlers, manage memory, run processes, or drive devices. The automated QEMU/OVMF test passes; physical-PC USB boot remains open.
+The UEFI application discovers the Graphics Output Protocol (GOP), draws an Everest splash screen, records framebuffer metadata, exits UEFI boot services, and transfers control to a small kernel entry linked into the same EFI image. The kernel validates the UEFI memory map, initializes an early physical-frame allocator and page tables/IDT, handles keyboard input for onboarding, and renders the desktop shell. This remains an early kernel foundation rather than a usable general-purpose operating system: process scheduling, user space, a VFS, general device drivers, and physical-hardware validation are still outstanding. The automated QEMU/OVMF test attaches a separate FAT32 test disk containing `HELLO.TXT` and asserts that its `EVEREST DISK OK` contents appear in the framebuffer. Physical-PC boot and disk-controller compatibility remain unverified.
 
 ## Planned system layers
 
@@ -47,7 +45,7 @@ No universal compatibility promise is made. Initial hardware targets must be doc
 - docs/HARDWARE.md — reference-hardware and test matrix.
 - docs/BUILDING.md — toolchain and build instructions.
 - boot/ — initial UEFI application and future kernel handoff.
-- kernel/ — initial no_std kernel entry; core services are not implemented yet.
+- kernel/ — no_std kernel, memory/interrupt foundations, ATA PIO block reads, and read-only FAT32 file access.
 - scripts/ — build and image preparation helpers.
 - .github/workflows/ — reproducible CI checks.
 
