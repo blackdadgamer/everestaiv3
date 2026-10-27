@@ -144,7 +144,7 @@ run_qemu() {
             sleep 0.4
             { printf 'mouse_button 0\\n'; sleep 0.4; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
             sleep 0.5
-        } | socat -T 1 - "UNIX-CONNECT:$QMP" >/dev/null
+        } | socat -T 1 - "UNIX-CONNECT:$QMP" > "$TMP_DIR/qmp-$boot_number.log"
     fi
 
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
@@ -154,6 +154,7 @@ run_qemu() {
     if ! python3 scripts/check-qemu-screen.py "$SCREEN" --file-manager --selected-index 0 --username admin --timezone NPT $([ "$boot_number" = "2" ] && printf -- "--mouse-drag"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
+        if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi
         printf 'Saved QEMU failure screenshot and log under dist/ for CI artifact inspection.\n' >&2
         cat "$QEMU_LOG" >&2
         exit 1
