@@ -45,54 +45,72 @@ def main() -> int:
         )
         return 1
 
-    # Verify the exact 5x7 bitmap pattern at the known runtime text origin.
-    # The kernel paints the message after the first interrupt-driven halt.
+    # Verify actual framebuffer glyphs for both the welcome title and typed input.
     glyphs = {
-        "H": [17, 17, 17, 31, 17, 17, 17],
-        "e": [0, 0, 14, 17, 31, 16, 14],
-        "l": [12, 4, 4, 4, 4, 4, 14],
-        "o": [0, 0, 14, 17, 17, 17, 14],
-        " ": [0, 0, 0, 0, 0, 0, 0],
+        "A": [14, 17, 17, 31, 17, 17, 17],
         "E": [31, 16, 16, 30, 16, 16, 31],
-        "v": [0, 0, 17, 17, 17, 10, 4],
+        "H": [17, 17, 17, 31, 17, 17, 17],
+        "O": [14, 17, 17, 17, 17, 17, 14],
+        "S": [15, 16, 16, 14, 1, 1, 30],
+        "W": [17, 17, 17, 21, 21, 21, 10],
+        "a": [0, 0, 14, 1, 15, 17, 15],
+        "c": [0, 0, 14, 16, 16, 17, 14],
+        "d": [1, 1, 15, 17, 17, 17, 15],
+        "e": [0, 0, 14, 17, 31, 16, 14],
+        "i": [4, 0, 12, 4, 4, 4, 14],
+        "l": [12, 4, 4, 4, 4, 4, 14],
+        "m": [0, 0, 26, 21, 21, 21, 21],
+        "n": [0, 0, 30, 17, 17, 17, 17],
+        "o": [0, 0, 14, 17, 17, 17, 14],
         "r": [0, 0, 22, 25, 16, 16, 16],
         "s": [0, 0, 15, 16, 14, 1, 30],
         "t": [8, 8, 28, 8, 8, 9, 6],
-        "O": [14, 17, 17, 17, 17, 17, 14],
-        "S": [15, 16, 16, 14, 1, 1, 30],
+        "u": [0, 0, 17, 17, 17, 19, 13],
+        "v": [0, 0, 17, 17, 17, 10, 4],
+        " ": [0, 0, 0, 0, 0, 0, 0],
     }
-    message = "Hello Everest OS"
-    origin_x, origin_y, scale = 16, 24, 3
     foreground = bytes((255, 255, 255))
-    backgrounds = (bytes((5, 8, 24)), bytes((24, 8, 5)))
+    screen_backgrounds = (bytes((5, 8, 24)), bytes((24, 8, 5)))
+    input_backgrounds = (bytes((18, 26, 48)), bytes((48, 26, 18)))
 
     def pixel_at(x: int, y: int) -> bytes:
         offset = (y * width + x) * 3
         return pixels[offset:offset + 3]
 
-    for char_index, character in enumerate(message):
-        rows = glyphs[character]
-        for row, bits in enumerate(rows):
-            for col in range(6):
-                lit = col < 5 and bool(bits & (1 << (4 - col)))
-                expected_color = foreground if lit else None
-                for dy in range(scale):
-                    for dx in range(scale):
-                        actual = pixel_at(
-                            origin_x + char_index * 6 * scale + col * scale + dx,
-                            origin_y + row * scale + dy,
-                        )
-                        if (actual != expected_color if expected_color else actual not in backgrounds):
-                            print(
-                                f"Bitmap text mismatch for {message!r} at character "
-                                f"{character!r}, row {row}, column {col}.",
-                                file=sys.stderr,
-                            )
-                            return 1
+    def verify_text(message: str, origin_x: int, origin_y: int, scale: int,
+                    backgrounds: tuple[bytes, ...]) -> bool:
+        for char_index, character in enumerate(message):
+            rows = glyphs[character]
+            for row, bits in enumerate(rows):
+                for col in range(6):
+                    lit = col < 5 and bool(bits & (1 << (4 - col)))
+                    expected_color = foreground if lit else None
+                    for dy in range(scale):
+                        for dx in range(scale):
+                            x = origin_x + char_index * 6 * scale + col * scale + dx
+                            y = origin_y + row * scale + dy
+                            if x >= width or y >= height:
+                                print(f"Text {message!r} extends beyond the framebuffer.", file=sys.stderr)
+                                return False
+                            actual = pixel_at(x, y)
+                            if (actual != expected_color if expected_color else actual not in backgrounds):
+                                print(
+                                    f"Text mismatch for {message!r} at character "
+                                    f"{character!r}, row {row}, column {col}.",
+                                    file=sys.stderr,
+                                )
+                                return False
+        return True
+
+    if not verify_text("Welcome to Everest OS", 80, 96, 3, screen_backgrounds):
+        return 1
+    if not verify_text("admin", 96, 205, 3, input_backgrounds):
+        print("The injected username 'admin' was not rendered in the input box.", file=sys.stderr)
+        return 1
 
     print(
-        f"QEMU UEFI boot passed: page-table/IDT={count}; verified bitmap text "
-        f"{message!r} at ({origin_x},{origin_y}) with scale {scale} in {width}x{height}."
+        f"QEMU UEFI boot passed: page-table/IDT={count}; verified welcome text "
+        f"and username 'admin' in the framebuffer ({width}x{height})."
     )
     return 0
 
