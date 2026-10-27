@@ -37,7 +37,7 @@ def main() -> int:
         print("Start menu popup verified.")
         return 0
     if "--launcher-terminal" in sys.argv:
-        if not is_color(pixel(188, 152), (80, 200, 160)):
+        if not is_color(pixel(192, 150), (80, 200, 160)):
             print("Launcher did not spawn a visible Terminal window.", file=sys.stderr)
             return 1
         print("Start launcher spawned a visible Terminal window.")
