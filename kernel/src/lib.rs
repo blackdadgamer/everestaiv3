@@ -122,7 +122,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
 
 const INPUT_BG: (u8, u8, u8) = (18, 26, 48);
 const UI_WHITE: (u8, u8, u8) = (255, 255, 255);
-const UI_ACCENT: (u8, u8, u8) = (110, 190, 255);
+const UI_ACCENT: (u8, u8, u8) = (92, 145, 220);
 
 fn draw_border(info: &BootInfo, x: usize, y: usize, width: usize, height: usize, thickness: usize, color: (u8, u8, u8)) {
     if width == 0 || height == 0 || thickness == 0 {
