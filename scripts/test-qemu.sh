@@ -89,6 +89,11 @@ run_qemu() {
     fi
 
     sleep 5
+    if ! kill -0 "$QEMU_PID" >/dev/null 2>&1; then
+        cat "$QEMU_LOG" >&2
+        printf "QEMU exited before accepting monitor commands on boot %s.\\n" "$boot_number" >&2
+        exit 1
+    fi
     if [ "$boot_number" = "1" ]; then
         # Enter username "admin", accept UTC, move to NPT, then finish setup.
         {
