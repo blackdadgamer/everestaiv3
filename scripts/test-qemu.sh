@@ -136,11 +136,11 @@ run_qemu() {
             # Move from the framebuffer center to the File Manager titlebar
             # (approximately x=200,y=120 at 1280x800). Keep each PS/2 delta
             # within the signed 8-bit packet range.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":-80}}]}}\r\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":80}}]}}\r\n'
             sleep 0.2
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}}]}}\r\n'
             sleep 0.2
