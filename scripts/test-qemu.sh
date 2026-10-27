@@ -116,7 +116,7 @@ run_qemu() {
             sleep 0.4
             for key in h e l l o spc w o r l d; do
                 printf 'sendkey %s\n' "$key"
-                sleep 0.15
+                sleep 0.3
             done
             printf 'sendkey ret\n'
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
@@ -172,13 +172,13 @@ run_qemu 1
 
 # Verify the terminal wrote the exact submitted text to the persistent FAT32 image.
 if ! mtype -i "$DATA_IMAGE" ::USER.TXT > "$TMP_DIR/USER.TXT"; then
-    printf 'USER.TXT was not written by the terminal.\\n' >&2
+    printf 'USER.TXT was not written by the terminal.\n' >&2
     exit 1
 fi
 printf 'Hello World' > "$TMP_DIR/expected-user.txt"
 if ! cmp -s "$TMP_DIR/expected-user.txt" "$TMP_DIR/USER.TXT"; then
-    printf 'USER.TXT contents did not match the submitted terminal line.\\n' >&2
-    printf 'Actual USER.TXT:\\n' >&2
+    printf 'USER.TXT contents did not match the submitted terminal line.\n' >&2
+    printf 'Actual USER.TXT:\n' >&2
     cat "$TMP_DIR/USER.TXT" >&2
     exit 1
 fi
