@@ -534,7 +534,7 @@ fn update_onboarding(info: &BootInfo) {
                         if length > 0 { TERMINAL_INPUT[length - 1].store(0, Ordering::Relaxed); TERMINAL_LEN.store(length - 1, Ordering::Relaxed); redraw = true; }
                     } else if (32..=126).contains(&key) {
                         let length = TERMINAL_LEN.load(Ordering::Relaxed).min(TERMINAL_CAPACITY);
-                        if length < TERMINAL_CAPACITY { TERMINAL_INPUT[length].store(key, Ordering::Relaxed); TERMINAL_LEN.store(length + 1, Ordering::Relaxed); TERMINAL_SAVED.store(0, Ordering::Relaxed); redraw = true; }
+                        if length < TERMINAL_CAPACITY { let previous = if length == 0 { b' ' } else { TERMINAL_INPUT[length - 1].load(Ordering::Relaxed) }; let stored = if key.is_ascii_lowercase() && previous == b' ' { key.to_ascii_uppercase() } else { key }; TERMINAL_INPUT[length].store(stored, Ordering::Relaxed); TERMINAL_LEN.store(length + 1, Ordering::Relaxed); TERMINAL_SAVED.store(0, Ordering::Relaxed); redraw = true; }
                     } else if key == 0x81 {
                         let selected = FILE_SELECTION_INDEX.load(Ordering::Relaxed);
                         FILE_SELECTION_INDEX.store(selected.saturating_sub(1), Ordering::Relaxed);
