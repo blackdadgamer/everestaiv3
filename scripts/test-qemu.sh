@@ -122,26 +122,32 @@ run_qemu() {
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
     else
-        # HMP sendkey tests keyboard navigation; QMP relative input events
-        # inject real motion/button events without a graphical display backend.
+        # Use QEMU's HMP mouse controls so movement and button state target
+        # the same active PS/2 mouse. QMP absolute events did not position the
+        # guest cursor consistently with this headless machine.
         sleep 2
-        sleep 0.5
         {
-            printf '{"execute":"qmp_capabilities"}\r\n'
+            printf 'info mice\n'
+            printf 'mouse_set 0\n'
+            # Start at the framebuffer center and move to the title bar near
+            # (200,120) at 1280x800 using bounded relative PS/2 movements.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
+                printf 'mouse_move -20 -20\n'
+                sleep 0.1
+            done
+            for step in 1 2 3 4 5 6 7 8; do
+                printf 'mouse_move -20 0\n'
+                sleep 0.1
+            done
             sleep 0.4
-            # QEMU's active PS/2 mouse accepts absolute pointer coordinates
-            # in the 0..32767 range. Position directly over the title bar to
-            # avoid depending on relative-motion packet scaling in headless CI.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"abs","data":{"axis":"x","value":5120}},{"type":"abs","data":{"axis":"y","value":4915}}]}}\r\n'
-            sleep 0.5
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":true}}]}}\r\n'
+            printf 'mouse_button 1\n'
             sleep 0.4
-            # Drag from approximately (200,120) to (240,110) at 1280x800.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"abs","data":{"axis":"x","value":6144}},{"type":"abs","data":{"axis":"y","value":4505}}]}}\r\n'
+            # Drag 40 pixels right and 10 pixels down while holding left.
+            printf 'mouse_move 40 10\n'
             sleep 0.5
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":false}}]}}\r\n'
+            printf 'mouse_button 0\n'
             sleep 0.5
-        } | socat -T 1 - "UNIX-CONNECT:$QMP" > "$TMP_DIR/qmp-$boot_number.log"
+        } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
