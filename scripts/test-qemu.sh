@@ -90,7 +90,7 @@ run_qemu() {
         exit 1
     fi
 
-    sleep 5
+    sleep 8
     if ! kill -0 "$QEMU_PID" >/dev/null 2>&1; then
         cat "$QEMU_LOG" >&2
         printf "QEMU exited before accepting monitor commands on boot %s.\\n" "$boot_number" >&2
@@ -101,7 +101,7 @@ run_qemu() {
         {
             for key in a d m i n; do
                 printf 'sendkey %s\n' "$key"
-                sleep 0.2
+                sleep 0.35
             done
             printf 'sendkey ret\n'
             sleep 0.3
