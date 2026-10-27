@@ -76,9 +76,10 @@ if [ ! -S "$MONITOR" ]; then
     exit 1
 fi
 
-# The firmware splash is shown briefly, then the early kernel status screen
-# remains visible. Capture the display after the handoff window.
-sleep 8
+# Wait for PIT activity, inject a PS/2 key through QEMU's monitor, then capture.
+sleep 5
+printf 'sendkey a\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+sleep 2
 printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
 wait "$QEMU_PID" || true
 QEMU_PID=""
