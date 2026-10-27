@@ -2,6 +2,8 @@
 
 pub mod arch;
 pub mod memory;
+pub mod interrupts;
+pub mod heap;
 
 use core::{mem, ptr};
 
@@ -95,13 +97,30 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     } else {
         false
     };
+    if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
+    if virtual_memory_ready {
+        unsafe { interrupts::initialize(); }
+        unsafe { core::arch::asm!("sti", options(nomem, nostack)); }
+    }
 
     loop {
         unsafe {
             core::arch::asm!("hlt", options(nomem, nostack, preserves_flags));
         }
+        if virtual_memory_ready {
+            draw_runtime_status(info);
+        }
     }
+}
+
+fn draw_runtime_status(info: &BootInfo) {
+    // Dedicated color markers make interrupt activity testable without OCR.
+    let tick_seen = interrupts::ticks() > 0;
+    let key_seen = interrupts::key_count() > 0;
+    let y = info.height.saturating_sub(24);
+    fill_rect(info, 8, y, 20, 12, if tick_seen { (255, 80, 200) } else { (50, 50, 50) });
+    fill_rect(info, 36, y, 20, 12, if key_seen { (255, 210, 40) } else { (50, 50, 50) });
 }
 
 fn validate_memory_map(info: &BootInfo) -> bool {

@@ -283,6 +283,10 @@ unsafe fn install_idt() {
         everest_isr_28 as *const () as usize, everest_isr_29 as *const () as usize, everest_isr_30 as *const () as usize, everest_isr_31 as *const () as usize,
     ];
     let idt_ptr = ptr::addr_of_mut!(IDT).cast::<IdtEntry>();
+    let irq_stubs = crate::interrupts::stubs();
+    for (index, address) in irq_stubs.iter().enumerate() {
+        unsafe { idt_ptr.add(32 + index).write(IdtEntry::interrupt_gate(*address as u64, code_selector)) };
+    }
     for (vector, address) in stubs.iter().enumerate() {
         unsafe { idt_ptr.add(vector).write(IdtEntry::interrupt_gate(*address as u64, code_selector)) };
     }
