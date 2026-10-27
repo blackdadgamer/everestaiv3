@@ -118,12 +118,16 @@ run_qemu() {
         # HMP sendkey tests keyboard navigation; QMP relative input events
         # inject real motion/button events without a graphical display backend.
         sleep 2
-        printf 'sendkey down\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        { printf 'sendkey down\\n'; sleep 0.5; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 0.5
         {
             printf '{"execute":"qmp_capabilities"}\\r\\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-120}},{"type":"rel","data":{"axis":"y","value":-250}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-120}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
+            sleep 0.2
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
+            sleep 0.2
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-60}}]}}\\r\\n'
             sleep 0.4
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":true}}]}}\\r\\n'
             sleep 0.3
