@@ -76,10 +76,16 @@ if [ ! -S "$MONITOR" ]; then
     exit 1
 fi
 
-# Wait for PIT activity, inject a PS/2 key through QEMU's monitor, then capture.
+# Wait for the UI to initialize, type "admin" through emulated PS/2,
+# then capture the framebuffer after the kernel has consumed the key queue.
 sleep 5
-printf 'sendkey a\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-sleep 2
+{
+    for key in a d m i n; do
+        printf 'sendkey %s\n' "$key"
+        sleep 0.2
+    done
+} | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+sleep 1
 printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
 wait "$QEMU_PID" || true
 QEMU_PID=""
