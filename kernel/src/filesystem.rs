@@ -233,7 +233,7 @@ impl Fat32Volume {
         let mut directory_cluster = self.root_cluster;
         let max_clusters = self.total_sectors / self.sectors_per_cluster as u32 + 1;
         let mut free_slot: Option<(u32, usize)> = None;
-        let mut existing: Option<(u32, u32, u32, usize)> = None;
+        let mut existing: Option<(u32, usize, u32, u32)> = None;
         for _ in 0..max_clusters {
             let first = self.cluster_sector(directory_cluster)?;
             for si in 0..self.sectors_per_cluster as u32 {
