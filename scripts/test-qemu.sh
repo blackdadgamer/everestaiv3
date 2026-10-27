@@ -131,6 +131,10 @@ run_qemu() {
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
             sleep 0.2
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-60}}]}}\\r\\n'
+            sleep 0.2
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
+            sleep 0.2
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
             sleep 0.4
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":true}}]}}\\r\\n'
             sleep 0.3
