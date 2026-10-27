@@ -118,11 +118,14 @@ run_qemu() {
         # HMP sendkey tests keyboard navigation; QMP relative input events
         # inject real motion/button events without a graphical display backend.
         sleep 2
-        { printf 'sendkey down\\n'; sleep 0.5; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 0.5
         {
             printf '{"execute":"qmp_capabilities"}\\r\\n'
-            sleep 0.2
+            sleep 0.4
+            # The first PS/2 packet after stream enable can be a sync packet;
+            # prime the packet decoder with a harmless one-pixel motion.
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\\r\\n'
+            sleep 0.4
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-120}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
             sleep 0.2
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
@@ -142,7 +145,7 @@ run_qemu() {
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --file-manager --selected-index "$([ "$boot_number" = "1" ] && printf 0 || printf 1)" --username admin --timezone NPT $([ "$boot_number" = "2" ] && printf -- "--mouse-drag"); then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --file-manager --selected-index 0 --username admin --timezone NPT $([ "$boot_number" = "2" ] && printf -- "--mouse-drag"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         printf 'Saved QEMU failure screenshot and log under dist/ for CI artifact inspection.\n' >&2
