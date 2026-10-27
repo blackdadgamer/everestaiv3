@@ -294,7 +294,7 @@ fn draw_app_windows(info: &BootInfo) {
         draw_text(info, x + 18, y + 15, 2, title, UI_WHITE);
         if kind == 1 {
             // Stable framebuffer marker used by the headless launcher regression test.
-            fill_rect(info, x + 8, y + 52, 1, 1, (80, 200, 160));
+            fill_rect(info, x + 8, y + 48, 8, 8, (80, 200, 160));
         }
         if kind == 3 {
             draw_text(info, x + 24, y + 90, 2, b"Everest OS v1.0", FILE_TEXT);
