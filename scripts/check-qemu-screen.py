@@ -128,6 +128,15 @@ def main() -> int:
     if not verify_text("Everest Terminal", window_x + 24, window_y + 13, 2, (33, 47, 74)):
         print("Terminal window title was not rendered correctly.", file=sys.stderr)
         return 1
+    if "--username" in sys.argv:
+        try:
+            username = sys.argv[sys.argv.index("--username") + 1]
+        except IndexError:
+            print("--username requires a value.", file=sys.stderr)
+            return 2
+        if not verify_text(username, window_x + 24, window_y + 140, 2, (14, 20, 36)):
+            print("Expected saved username was not rendered in the desktop.", file=sys.stderr)
+            return 1
     if not verify_text("START", 30, height - 36, 2, (42, 62, 96)):
         print("Taskbar Start button label was not rendered correctly.", file=sys.stderr)
         return 1
