@@ -160,6 +160,8 @@ run_qemu() {
             sleep 0.3
             printf 'mouse_button 0\n'
             sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/start-menu.ppm"
+            sleep 0.3
             for step in 1 2 3 4 5 6 7 8; do
                 printf 'mouse_move 0 -20\n'
                 sleep 0.1
@@ -173,6 +175,9 @@ run_qemu() {
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
+    if [ "$boot_number" = "2" ]; then
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/start-menu.ppm" --start-menu
+    fi
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     wait "$QEMU_PID" || true
     QEMU_PID=""
