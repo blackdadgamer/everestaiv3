@@ -140,7 +140,7 @@ run_qemu() {
             # Prime one packet after the button transition, then drag.
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\\r\\n'
             sleep 0.3
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":99}},{"type":"rel","data":{"axis":"y","value":79}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":39}},{"type":"rel","data":{"axis":"y","value":9}}]}}\\r\\n'
             sleep 0.4
             { printf 'mouse_button 0\\n'; sleep 0.4; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
             sleep 0.5

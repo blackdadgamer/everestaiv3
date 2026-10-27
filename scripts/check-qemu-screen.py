@@ -58,7 +58,7 @@ def main() -> int:
             print(f"Kernel health marker missing ({marker_count} pixels).", file=sys.stderr)
             return 1
         drag_test = "--mouse-drag" in sys.argv
-        wx, wy = width // 8 + (100 if drag_test else 0), height // 8 + (80 if drag_test else 0)
+        wx, wy = width // 8 + (40 if drag_test else 0), height // 8 + (10 if drag_test else 0)
         row_y = wy + 112 + selected * 38
         if not matches_color(wx + 28, row_y + 4, (187, 154, 247)):
             print(f"Violet highlight not found on selected row {selected}.", file=sys.stderr)
