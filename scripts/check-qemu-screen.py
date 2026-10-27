@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 def main() -> int:
-    if len(sys.argv) < 2 or len(sys.argv) > 6 or (len(sys.argv) - 2) % 2 != 0:
-        print("usage: check-qemu-screen.py SCREEN.ppm [--username NAME] [--timezone ZONE]", file=sys.stderr)
+    if len(sys.argv) < 2 or len(sys.argv) > 10:
+        print("usage: check-qemu-screen.py SCREEN.ppm [--file-manager] [--selected-index N] [--username NAME] [--timezone ZONE]", file=sys.stderr)
         return 2
 
     data = Path(sys.argv[1]).read_bytes()
@@ -34,6 +34,45 @@ def main() -> int:
     def matches_color(x: int, y: int, color: tuple[int, int, int]) -> bool:
         actual = pixel_at(x, y)
         return actual == bytes(color) or actual == reversed_color(color)
+
+    if "--file-manager" in sys.argv:
+        selected = int(sys.argv[sys.argv.index("--selected-index") + 1]) if "--selected-index" in sys.argv else 0
+        if width < 800 or height < 600:
+            print(f"File Manager test requires at least 800x600; got {width}x{height}.", file=sys.stderr)
+            return 1
+        for label, color in [
+            ("Tokyo Night background", (26, 27, 38)),
+            ("violet selection", (187, 154, 247)),
+            ("title bar", (36, 40, 59)),
+        ]:
+            found = sum(1 for offset in range(0, len(pixels), 3)
+                        if pixels[offset:offset + 3] in (bytes(color), reversed_color(color)))
+            if found < 50:
+                print(f"{label} color missing ({found} pixels).", file=sys.stderr)
+                return 1
+        marker = (110, 190, 255)
+        marker_reverse = (255, 190, 110)
+        marker_count = sum(1 for offset in range(0, len(pixels), 3)
+                           if pixels[offset:offset + 3] in (bytes(marker), bytes(marker_reverse)))
+        if marker_count < 10:
+            print(f"Kernel health marker missing ({marker_count} pixels).", file=sys.stderr)
+            return 1
+        wx, wy = width // 8, height // 8
+        row_y = wy + 112 + selected * 38
+        if not matches_color(wx + 28, row_y + 4, (187, 154, 247)):
+            print(f"Violet highlight not found on selected row {selected}.", file=sys.stderr)
+            return 1
+        if not matches_color(wx + 8, wy + 100, (26, 27, 38)):
+            print("File Manager interior/background mismatch.", file=sys.stderr)
+            return 1
+        # Status strip uses the same title-bar fill; verify the C:/ path's
+        # expected position is inside that strip rather than outside the window.
+        status_y = wy + (height * 3 // 4) - 44
+        if not matches_color(wx + 10, status_y + 5, (36, 40, 59)):
+            print("File Manager status bar missing.", file=sys.stderr)
+            return 1
+        print(f"File Manager framebuffer passed: Tokyo Night palette and selected row {selected}.")
+        return 0
 
     # The small status indicator is intentionally retained on the taskbar.
     marker = (110, 190, 255)

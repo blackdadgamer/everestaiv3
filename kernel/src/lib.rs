@@ -223,62 +223,92 @@ fn draw_onboarding_screen(info: &BootInfo) {
     }
 }
 
-const DESKTOP_BG: (u8, u8, u8) = (12, 17, 32);
-const TASKBAR_BG: (u8, u8, u8) = (20, 28, 48);
-const WINDOW_BG: (u8, u8, u8) = (14, 20, 36);
-const TITLEBAR_BG: (u8, u8, u8) = (33, 47, 74);
+const DESKTOP_BG: (u8, u8, u8) = (26, 27, 38); // Tokyo Night #1a1b26
+const TASKBAR_BG: (u8, u8, u8) = (22, 24, 35);
+const WINDOW_BG: (u8, u8, u8) = (26, 27, 38);
+const TITLEBAR_BG: (u8, u8, u8) = (36, 40, 59);
+const FILE_SELECTION: (u8, u8, u8) = (187, 154, 247); // #bb9af7
+const FILE_TEXT: (u8, u8, u8) = (192, 202, 245);
+const FILE_SELECTED_TEXT: (u8, u8, u8) = (26, 27, 38);
+static FILE_SELECTION_INDEX: AtomicUsize = AtomicUsize::new(0);
 
 fn draw_desktop(info: &BootInfo) {
     fill_rect(info, 0, 0, info.width, info.height, DESKTOP_BG);
-
-    let window_width = info.width.saturating_mul(3) / 5;
-    let window_height = info.height.saturating_mul(3) / 5;
+    let window_width = info.width.saturating_mul(3) / 4;
+    let window_height = info.height.saturating_mul(3) / 4;
     let window_x = info.width.saturating_sub(window_width) / 2;
     let window_y = info.height.saturating_sub(window_height) / 2;
-    let titlebar_height = 42usize.min(window_height);
-    draw_border(info, window_x, window_y, window_width, window_height, 3, UI_ACCENT);
-    fill_rect(info, window_x + 3, window_y + 3, window_width.saturating_sub(6),
-        window_height.saturating_sub(6), WINDOW_BG);
-    fill_rect(info, window_x + 3, window_y + 3, window_width.saturating_sub(6),
-        titlebar_height.saturating_sub(3), TITLEBAR_BG);
-    draw_text(info, window_x + 24, window_y + 13, 2, b"Everest Terminal", UI_WHITE);
-    draw_text(info, window_x + 24, window_y + 78, 2, b"Everest OS ready", (160, 190, 230));
-    draw_text(info, window_x + 24, window_y + 112, 2, b"Welcome,", (160, 190, 230));
-    let length = USERNAME_LEN.load(Ordering::Relaxed).min(USERNAME_CAPACITY);
+    let titlebar_height = 46usize.min(window_height);
+    draw_border(info, window_x, window_y, window_width, window_height, 2, FILE_SELECTION);
+    fill_rect(info, window_x + 2, window_y + 2, window_width.saturating_sub(4), window_height.saturating_sub(4), WINDOW_BG);
+    fill_rect(info, window_x + 2, window_y + 2, window_width.saturating_sub(4), titlebar_height.saturating_sub(2), TITLEBAR_BG);
+    draw_text(info, window_x + 22, window_y + 15, 2, b"FILE MANAGER", UI_WHITE);
+    draw_text(info, window_x + window_width.saturating_sub(140), window_y + 17, 1, b"EVEREST OS", FILE_TEXT);
+
+    draw_text(info, window_x + 24, window_y + 62, 1, b"USER:", FILE_TEXT);
+    let username_len = USERNAME_LEN.load(Ordering::Relaxed).min(USERNAME_CAPACITY);
     let mut username = [0u8; USERNAME_CAPACITY];
-    for (index, byte) in username.iter_mut().enumerate().take(length) {
-        *byte = USERNAME[index].load(Ordering::Relaxed);
-    }
-    draw_text(info, window_x + 24, window_y + 140, 2, &username[..length], UI_WHITE);
-    draw_text(info, window_x + 24, window_y + 162, 1, b"TIMEZONE:", UI_WHITE);
-    let timezone: &[u8] = match TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2) {
-        1 => b"NPT",
-        2 => b"EST",
-        _ => b"UTC",
-    };
-    draw_text(info, window_x + 24 + 9 * 6, window_y + 162, 1, timezone, UI_WHITE);
-    draw_text(info, window_x + 24, window_y + 176, 1, b"FAT32 FILE: HELLO.TXT", (110, 190, 255));
-    if DISK_TEXT_OK.load(Ordering::Relaxed) == 1 {
-        let disk_length = DISK_TEXT_LEN.load(Ordering::Relaxed).min(DISK_TEXT_CAPACITY);
-        let mut disk_text = [0u8; DISK_TEXT_CAPACITY];
-        for (index, byte) in disk_text.iter_mut().enumerate().take(disk_length) { *byte = DISK_TEXT[index].load(Ordering::Relaxed); }
-        draw_text(info, window_x + 24, window_y + 194, 1, &disk_text[..disk_length], UI_WHITE);
-    } else {
-        draw_text(info, window_x + 24, window_y + 194, 1, b"FILE UNAVAILABLE", (255, 120, 120));
+    for (i, byte) in username.iter_mut().enumerate().take(username_len) { *byte = USERNAME[i].load(Ordering::Relaxed); }
+    draw_text(info, window_x + 60, window_y + 62, 1, &username[..username_len], UI_WHITE);
+    draw_text(info, window_x + window_width.saturating_sub(104), window_y + 62, 1, b"TIMEZONE:", FILE_TEXT);
+    let timezone: &[u8] = match TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2) { 1 => b"NPT", 2 => b"EST", _ => b"UTC" };
+    draw_text(info, window_x + window_width.saturating_sub(50), window_y + 62, 1, timezone, UI_WHITE);
+
+    draw_border(info, window_x + 16, window_y + 82, window_width.saturating_sub(32), window_height.saturating_sub(142), 1, (65, 72, 97));
+    draw_text(info, window_x + 32, window_y + 92, 1, b"NAME", (122, 162, 247));
+    draw_text(info, window_x + window_width.saturating_sub(160), window_y + 92, 1, b"TYPE", (122, 162, 247));
+
+    let mut names = [[0u8; 11]; 32];
+    let mut count = 0usize;
+    if let Ok(volume) = filesystem::open_volume() { let _ = volume.list_root_files(&mut names, &mut count); }
+    let selected = FILE_SELECTION_INDEX.load(Ordering::Relaxed).min(count.saturating_sub(1));
+    let visible = 6usize.min(count);
+    for index in 0..visible {
+        let row_y = window_y + 112 + index * 38;
+        if index == selected {
+            fill_rect(info, window_x + 20, row_y - 4, window_width.saturating_sub(40), 30, FILE_SELECTION);
+        } else if index % 2 == 1 {
+            fill_rect(info, window_x + 20, row_y - 4, window_width.saturating_sub(40), 30, (31, 34, 48));
+        }
+        let mut name = [0u8; 13];
+        let mut out = 0usize;
+        for byte in &names[index][..8] {
+            if *byte == b' ' { break; }
+            name[out] = if (32..=126).contains(byte) { *byte } else { b'?' }; out += 1;
+        }
+        if names[index][8..11].iter().any(|b| *b != b' ') {
+            name[out] = b'.'; out += 1;
+            for byte in &names[index][8..11] {
+                if *byte == b' ' { break; }
+                name[out] = if (32..=126).contains(byte) { *byte } else { b'?' }; out += 1;
+            }
+        }
+        let color = if index == selected { FILE_SELECTED_TEXT } else { FILE_TEXT };
+        draw_text(info, window_x + 36, row_y + 3, 2, &name[..out], color);
+        draw_text(info, window_x + window_width.saturating_sub(150), row_y + 5, 1,
+            if names[index][8..11].iter().any(|b| *b != b' ') { b"FILE" } else { b"ITEM" }, color);
     }
 
-    let taskbar_height = 56usize.min(info.height);
+    let status_y = window_y + window_height.saturating_sub(44);
+    fill_rect(info, window_x + 3, status_y, window_width.saturating_sub(6), 39, TITLEBAR_BG);
+    draw_border(info, window_x + 3, status_y, window_width.saturating_sub(6), 1, 1, FILE_SELECTION);
+    draw_text(info, window_x + 24, status_y + 14, 1, b"C:/", UI_WHITE);
+    draw_text(info, window_x + 90, status_y + 14, 1, b"FILES:", FILE_TEXT);
+    let value = count.min(999);
+    let mut digits = [b'0'; 3];
+    let digit_count = if value >= 100 {
+        digits = [b'0' + (value / 100) as u8, b'0' + ((value / 10) % 10) as u8, b'0' + (value % 10) as u8]; 3
+    } else if value >= 10 {
+        digits[0] = b'0' + (value / 10) as u8; digits[1] = b'0' + (value % 10) as u8; 2
+    } else { digits[0] = b'0' + value as u8; 1 };
+    draw_text(info, window_x + 132, status_y + 14, 1, &digits[3 - digit_count..], UI_WHITE);
+
+    let taskbar_height = 36usize.min(info.height);
     let taskbar_y = info.height.saturating_sub(taskbar_height);
     fill_rect(info, 0, taskbar_y, info.width, taskbar_height, TASKBAR_BG);
-    draw_border(info, 16, taskbar_y + 12, 104, 32, 2, UI_ACCENT);
-    fill_rect(info, 18, taskbar_y + 14, 100, 28, (42, 62, 96));
-    draw_text(info, 30, taskbar_y + 20, 2, b"START", UI_WHITE);
-    draw_text(info, info.width.saturating_sub(120), taskbar_y + 19, 2, b"12:00", UI_WHITE);
-
-    // Keep a small kernel-health indicator visible on the desktop taskbar.
-    if info.width >= 180 {
-        fill_rect(info, info.width - 160, taskbar_y + 26, 4, 4, (110, 190, 255));
-    }
+    draw_text(info, 18, taskbar_y + 12, 1, b"EVEREST", FILE_TEXT);
+    draw_text(info, info.width.saturating_sub(58), taskbar_y + 12, 1, b"12:00", FILE_TEXT);
+    if info.width >= 180 { fill_rect(info, info.width - 160, taskbar_y + 16, 4, 4, (110, 190, 255)); }
 }
 
 fn load_configuration() {
@@ -389,14 +419,23 @@ fn update_onboarding(info: &BootInfo) {
                 _ => {}
             },
             _ => {
-                // Step 3 is the completed setup confirmation; Enter is accepted
-                // while leaving this milestone's final confirmation visible.
-                if key == b'\n' {
-                    // Only leave setup once the configuration is durable on disk.
-                    if save_configuration() {
-                        ONBOARDING_STEP.store(3, Ordering::Relaxed);
+                if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 {
+                    let count = filesystem::open_volume().ok().map(|volume| {
+                        let mut names = [[0u8; 11]; 32]; let mut count = 0usize;
+                        let _ = volume.list_root_files(&mut names, &mut count); count
+                    }).unwrap_or(0);
+                    if key == 0x81 {
+                        let selected = FILE_SELECTION_INDEX.load(Ordering::Relaxed);
+                        FILE_SELECTION_INDEX.store(selected.saturating_sub(1), Ordering::Relaxed);
+                        redraw = true;
+                    } else if key == 0x82 {
+                        let selected = FILE_SELECTION_INDEX.load(Ordering::Relaxed);
+                        FILE_SELECTION_INDEX.store(selected.saturating_add(1).min(count.saturating_sub(1)), Ordering::Relaxed);
                         redraw = true;
                     }
+                } else if key == b'\n' && save_configuration() {
+                    ONBOARDING_STEP.store(3, Ordering::Relaxed);
+                    redraw = true;
                 }
             }
         }
