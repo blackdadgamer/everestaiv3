@@ -148,7 +148,7 @@ fn translate(scancode:u8)->u8{
         0x10..=0x1B=>ROW2[(scancode-0x10) as usize],
         0x1E..=0x29=>ROW3[(scancode-0x1E) as usize],
         0x2C..=0x35=>ROW4[(scancode-0x2C) as usize],
-        0x0E=>8,0x39=>b' ',0x1C=>b'\n',_=>0
+        0x0E=>8,0x39=>b' ',0x1C=>b'\n',0x48=>0x81,0x50=>0x82,_=>0
     }
 }
 #[unsafe(no_mangle)]
@@ -190,6 +190,8 @@ mod tests {
         assert_eq!(translate(0x39), b' ');
         assert_eq!(translate(0x0E), 8);
         assert_eq!(translate(0x1C), b'\n');
+        assert_eq!(translate(0x48), 0x81); // extended Up Arrow
+        assert_eq!(translate(0x50), 0x82); // extended Down Arrow
         assert_eq!(translate(0x01), 0);
     }
 }

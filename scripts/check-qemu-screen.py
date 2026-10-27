@@ -48,6 +48,11 @@ def main() -> int:
     # Verify actual framebuffer glyphs for both the welcome title and typed input.
     glyphs = {
         "A": [14, 17, 17, 31, 17, 17, 17],
+        "C": [14, 17, 16, 16, 16, 17, 14],
+        "N": [17, 25, 25, 21, 19, 19, 17],
+        "P": [30, 17, 17, 30, 16, 16, 16],
+        "T": [31, 4, 4, 4, 4, 4, 4],
+        "U": [17, 17, 17, 17, 17, 17, 14],
         "E": [31, 16, 16, 30, 16, 16, 31],
         "H": [17, 17, 17, 31, 17, 17, 17],
         "O": [14, 17, 17, 17, 17, 17, 14],
@@ -62,6 +67,7 @@ def main() -> int:
         "m": [0, 0, 26, 21, 21, 21, 21],
         "n": [0, 0, 30, 17, 17, 17, 17],
         "o": [0, 0, 14, 17, 17, 17, 14],
+        "p": [0, 0, 30, 17, 30, 16, 16],
         "r": [0, 0, 22, 25, 16, 16, 16],
         "s": [0, 0, 15, 16, 14, 1, 30],
         "t": [8, 8, 28, 8, 8, 9, 6],
@@ -102,15 +108,23 @@ def main() -> int:
                                 return False
         return True
 
-    if not verify_text("Welcome to Everest OS", 80, 96, 3, screen_backgrounds):
+    if not verify_text("Setup Complete", 80, 96, 3, screen_backgrounds):
+        print("The final Setup Complete screen was not rendered.", file=sys.stderr)
         return 1
-    if not verify_text("admin", 96, 205, 3, input_backgrounds):
-        print("The injected username 'admin' was not rendered in the input box.", file=sys.stderr)
+    if not verify_text("admin", 210, 170, 2, screen_backgrounds):
+        print("The saved username 'admin' is missing from the completion screen.", file=sys.stderr)
+        return 1
+    if not verify_text("NPT", 210, 220, 2, screen_backgrounds):
+        print("The selected timezone NPT is missing from the completion screen.", file=sys.stderr)
+        return 1
+    if not verify_text("Press Enter to Start", 90, 296, 2, screen_backgrounds):
+        print("The final Start prompt is missing from the completion screen.", file=sys.stderr)
         return 1
 
     print(
-        f"QEMU UEFI boot passed: page-table/IDT={count}; verified welcome text "
-        f"and username 'admin' in the framebuffer ({width}x{height})."
+        f"QEMU UEFI boot passed: page-table/IDT={count}; completed onboarding and "
+        f"verified Setup Complete, username 'admin', timezone 'NPT', and Start prompt "
+        f"in the framebuffer ({width}x{height})."
     )
     return 0
 
