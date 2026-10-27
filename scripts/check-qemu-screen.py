@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: check-qemu-screen.py SCREEN.ppm", file=sys.stderr)
+    if len(sys.argv) < 2 or len(sys.argv) > 6 or (len(sys.argv) - 2) % 2 != 0:
+        print("usage: check-qemu-screen.py SCREEN.ppm [--username NAME] [--timezone ZONE]", file=sys.stderr)
         return 2
 
     data = Path(sys.argv[1]).read_bytes()
