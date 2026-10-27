@@ -4,6 +4,7 @@ pub mod arch;
 pub mod memory;
 pub mod interrupts;
 pub mod heap;
+pub mod filesystem;
 
 use core::{mem, ptr};
 use core::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
@@ -60,6 +61,32 @@ static USERNAME: [AtomicU8; USERNAME_CAPACITY] =
 static USERNAME_LEN: AtomicUsize = AtomicUsize::new(0);
 static ONBOARDING_STEP: AtomicU8 = AtomicU8::new(0);
 static TIMEZONE_SELECTION: AtomicU8 = AtomicU8::new(0);
+const DISK_TEXT_CAPACITY: usize = 96;
+static DISK_TEXT: [AtomicU8; DISK_TEXT_CAPACITY] = [const { AtomicU8::new(0) }; DISK_TEXT_CAPACITY];
+static DISK_TEXT_LEN: AtomicUsize = AtomicUsize::new(0);
+static DISK_TEXT_OK: AtomicU8 = AtomicU8::new(0);
+
+/// Read HELLO.TXT from the FAT32 root directory, keeping the UI path bounded.
+fn load_demo_file() {
+    let result = (|| {
+        let volume = filesystem::open_volume().ok()?;
+        let (cluster, size) = volume.find_root_file(b"HELLO   TXT").ok()?;
+        if size as usize > DISK_TEXT_CAPACITY { return None; }
+        let mut bytes = [0u8; DISK_TEXT_CAPACITY];
+        let read = volume.read_file(cluster, size, &mut bytes).ok()?;
+        Some((bytes, read))
+    })();
+    if let Some((bytes, length)) = result {
+        for (i, slot) in DISK_TEXT.iter().enumerate() {
+            slot.store(if i < length && (32..=126).contains(&bytes[i]) { bytes[i] } else { 0 }, Ordering::Relaxed);
+        }
+        DISK_TEXT_LEN.store(length, Ordering::Relaxed);
+        DISK_TEXT_OK.store(1, Ordering::Relaxed);
+    } else {
+        DISK_TEXT_LEN.store(0, Ordering::Relaxed);
+        DISK_TEXT_OK.store(0, Ordering::Relaxed);
+    }
+}
 
 /// Entry reached only after the UEFI boot services have been exited.
 ///
@@ -105,6 +132,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
         false
     };
     if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
+    load_demo_file();
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
     draw_onboarding_screen(info);
     if virtual_memory_ready {
@@ -220,6 +248,15 @@ fn draw_desktop(info: &BootInfo) {
         *byte = USERNAME[index].load(Ordering::Relaxed);
     }
     draw_text(info, window_x + 24, window_y + 140, 2, &username[..length], UI_WHITE);
+    draw_text(info, window_x + 24, window_y + 176, 1, b"FAT32 FILE: HELLO.TXT", (110, 190, 255));
+    if DISK_TEXT_OK.load(Ordering::Relaxed) == 1 {
+        let disk_length = DISK_TEXT_LEN.load(Ordering::Relaxed).min(DISK_TEXT_CAPACITY);
+        let mut disk_text = [0u8; DISK_TEXT_CAPACITY];
+        for (index, byte) in disk_text.iter_mut().enumerate().take(disk_length) { *byte = DISK_TEXT[index].load(Ordering::Relaxed); }
+        draw_text(info, window_x + 24, window_y + 194, 1, &disk_text[..disk_length], UI_WHITE);
+    } else {
+        draw_text(info, window_x + 24, window_y + 194, 1, b"FILE UNAVAILABLE", (255, 120, 120));
+    }
 
     let taskbar_height = 56usize.min(info.height);
     let taskbar_y = info.height.saturating_sub(taskbar_height);
