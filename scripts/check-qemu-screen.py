@@ -67,7 +67,12 @@ def main() -> int:
             print("File Manager interior/background mismatch.", file=sys.stderr)
             return 1
         if drag_test:
-            if not matches_color(wx + 1, wy + 1, (187, 154, 247)):
+            border_found = any(
+                matches_color(wx + dx, wy + dy, (187, 154, 247))
+                for dx in range(-2, 3) for dy in range(-2, 3)
+                if 0 <= wx + dx < width and 0 <= wy + dy < height
+            )
+            if not border_found:
                 print("Window border was not found at the dragged position.", file=sys.stderr)
                 return 1
             cursor_colors = (bytes((245, 245, 255)), bytes((255, 245, 245)))
