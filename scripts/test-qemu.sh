@@ -134,17 +134,17 @@ run_qemu() {
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
             sleep 0.4
             # Move from the framebuffer center to the File Manager titlebar
-            # (approximately x=200,y=120 at 1280x800). Keep each PS/2 delta
-            # within the signed 8-bit packet range.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":100}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":100}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":80}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-40}}]}}\r\n'
+            # (approximately x=200,y=120 at 1280x800). Use small deltas with
+            # time for each PS/2 packet to be consumed; large batched motions
+            # were not reliably reflected by the guest's packet decoder.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
+                printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-20}},{"type":"rel","data":{"axis":"y","value":20}}]}}\r\n'
+                sleep 0.1
+            done
+            for step in 1 2 3 4 5 6 7 8; do
+                printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-20}}]}}\r\n'
+                sleep 0.1
+            done
             sleep 0.4
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":true}}]}}\r\n'
             sleep 0.4
