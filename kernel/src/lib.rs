@@ -5,7 +5,6 @@ pub mod memory;
 pub mod interrupts;
 pub mod heap;
 pub mod filesystem;
-pub mod filesystem;
 
 use core::{mem, ptr};
 use core::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
