@@ -76,14 +76,19 @@ if [ ! -S "$MONITOR" ]; then
     exit 1
 fi
 
-# Wait for the UI to initialize, type "admin" through emulated PS/2,
-# then capture the framebuffer after the kernel has consumed the key queue.
+# Complete onboarding through the emulated PS/2 keyboard: enter username,
+# confirm it, move from UTC to NPT with Down Arrow, and confirm the timezone.
 sleep 5
 {
     for key in a d m i n; do
         printf 'sendkey %s\n' "$key"
         sleep 0.2
     done
+    printf 'sendkey ret\n'
+    sleep 0.3
+    printf 'sendkey down\n'
+    sleep 0.3
+    printf 'sendkey ret\n'
 } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
 sleep 1
 printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
