@@ -251,6 +251,13 @@ fn draw_desktop(info: &BootInfo) {
         *byte = USERNAME[index].load(Ordering::Relaxed);
     }
     draw_text(info, window_x + 24, window_y + 140, 2, &username[..length], UI_WHITE);
+    draw_text(info, window_x + 24, window_y + 162, 1, b"TIMEZONE:", (160, 190, 230));
+    let timezone: &[u8] = match TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2) {
+        1 => b"NPT",
+        2 => b"EST",
+        _ => b"UTC",
+    };
+    draw_text(info, window_x + 24 + 9 * 6, window_y + 162, 1, timezone, UI_WHITE);
     draw_text(info, window_x + 24, window_y + 176, 1, b"FAT32 FILE: HELLO.TXT", (110, 190, 255));
     if DISK_TEXT_OK.load(Ordering::Relaxed) == 1 {
         let disk_length = DISK_TEXT_LEN.load(Ordering::Relaxed).min(DISK_TEXT_CAPACITY);
