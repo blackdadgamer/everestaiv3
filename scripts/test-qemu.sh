@@ -112,39 +112,42 @@ run_qemu() {
             printf 'sendkey ret\n'
             sleep 0.4
             printf 'sendkey ret\n'
+            # Type a terminal line and submit it; the guest writes USER.TXT.
+            sleep 0.4
+            for key in h e l l o spc w o r l d; do
+                printf 'sendkey %s\n' "$key"
+                sleep 0.3
+            done
+            printf 'sendkey ret\n'
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
     else
-        # HMP sendkey tests keyboard navigation; QMP relative input events
-        # inject real motion/button events without a graphical display backend.
+        # Use QEMU's HMP mouse controls so movement and button state target
+        # the same active PS/2 mouse. QMP absolute events did not position the
+        # guest cursor consistently with this headless machine.
         sleep 2
-        sleep 0.5
         {
-            printf '{"execute":"qmp_capabilities"}\r\n'
+            printf 'info mice\n'
+            printf 'mouse_set 0\n'
+            # Start at the framebuffer center and move to the title bar near
+            # (200,120) at 1280x800 using bounded relative PS/2 movements.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
+                printf 'mouse_move -20 -20\n'
+                sleep 0.1
+            done
+            for step in 1 2 3 4 5 6 7 8; do
+                printf 'mouse_move -20 0\n'
+                sleep 0.1
+            done
             sleep 0.4
-            # The first PS/2 packet after stream enable can be a sync packet;
-            # prime the packet decoder with a harmless one-pixel motion.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
+            printf 'mouse_button 1\n'
             sleep 0.4
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-120}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-60}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
-            sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
-            sleep 0.4
-            { printf 'mouse_button 1\\n'; sleep 0.4; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-            # Prime one packet after the button transition, then drag.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
-            sleep 0.3
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":39}},{"type":"rel","data":{"axis":"y","value":9}}]}}\r\n'
-            sleep 0.4
-            { printf 'mouse_button 0\\n'; sleep 0.4; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+            # Drag 40 pixels right and 10 pixels down while holding left.
+            printf 'mouse_move 40 10\n'
             sleep 0.5
-        } | socat -T 1 - "UNIX-CONNECT:$QMP" > "$TMP_DIR/qmp-$boot_number.log"
+            printf 'mouse_button 0\n'
+            sleep 0.5
+        } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
@@ -163,6 +166,19 @@ run_qemu() {
 
 run_qemu 1
 
+# Verify the terminal wrote the exact submitted text to the persistent FAT32 image.
+if ! mtype -i "$DATA_IMAGE" ::USER.TXT > "$TMP_DIR/USER.TXT"; then
+    printf 'USER.TXT was not written by the terminal.\n' >&2
+    exit 1
+fi
+printf 'Hello World' > "$TMP_DIR/expected-user.txt"
+if ! cmp -s "$TMP_DIR/expected-user.txt" "$TMP_DIR/USER.TXT"; then
+    printf 'USER.TXT contents did not match the submitted terminal line.\n' >&2
+    printf 'Actual USER.TXT:\n' >&2
+    cat "$TMP_DIR/USER.TXT" >&2
+    exit 1
+fi
+
 # Inspect the actual on-disk bytes after the first VM has exited.
 if ! mtype -i "$DATA_IMAGE" ::CONFIG.TXT > "$TMP_DIR/CONFIG.TXT"; then
     printf 'CONFIG.TXT was not written to the FAT32 disk.\n' >&2
@@ -178,4 +194,4 @@ fi
 
 # Reboot with the exact same writable data-disk image and no onboarding input.
 run_qemu 2
-printf 'Persistent configuration, keyboard navigation, mouse cursor and titlebar drag passed.\n'
+printf 'Terminal USER.TXT write, persistent configuration, keyboard navigation, mouse cursor and titlebar drag passed.\n'
