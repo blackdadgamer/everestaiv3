@@ -58,7 +58,33 @@ def main() -> int:
             print(f"Kernel health marker missing ({marker_count} pixels).", file=sys.stderr)
             return 1
         drag_test = "--mouse-drag" in sys.argv
-        wx, wy = width // 8 + (40 if drag_test else 0), height // 8 + (10 if drag_test else 0)
+
+        # Do not predict the drag delta from QEMU's PS/2 input. Mouse packets
+        # are relative and the guest may apply acceleration/scaling, so locate
+        # the actual window from its long, topmost violet border instead.
+        violet = (187, 154, 247)
+        min_border_run = (width * 3 // 4) - 8
+        wx = wy = None
+        for y in range(height):
+            run_start = None
+            for x in range(width):
+                if matches_color(x, y, violet):
+                    if run_start is None:
+                        run_start = x
+                else:
+                    if run_start is not None and x - run_start >= min_border_run:
+                        wx, wy = run_start, y
+                        break
+                    run_start = None
+            if wx is not None:
+                break
+            if run_start is not None and width - run_start >= min_border_run:
+                wx, wy = run_start, y
+                break
+        if wx is None or wy is None:
+            print("File Manager top border not found in framebuffer.", file=sys.stderr)
+            return 1
+
         row_y = wy + 112 + selected * 38
         if not matches_color(wx + 28, row_y + 4, (187, 154, 247)):
             print(f"Violet highlight not found on selected row {selected}.", file=sys.stderr)
