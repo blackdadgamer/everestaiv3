@@ -41,6 +41,7 @@ def main() -> int:
             print("Launcher did not spawn a visible Terminal window.", file=sys.stderr)
             return 1
         print("Start launcher spawned a visible Terminal window.")
+        return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.
     border = (187, 154, 247)
