@@ -112,6 +112,13 @@ run_qemu() {
             printf 'sendkey ret\n'
             sleep 0.4
             printf 'sendkey ret\n'
+            # Type a terminal line and submit it; the guest writes USER.TXT.
+            sleep 0.4
+            for key in h e l l o spc w o r l d; do
+                printf 'sendkey %s\n' "$key"
+                sleep 0.15
+            done
+            printf 'sendkey ret\n'
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
     else
