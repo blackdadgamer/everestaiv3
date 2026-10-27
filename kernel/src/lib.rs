@@ -455,7 +455,7 @@ fn process_mouse_events(info: &BootInfo) -> bool {
             if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
             } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(160) && y < taskbar_y {
-                let row = (y - taskbar_y.saturating_sub(160)) / 34;
+                let row = y.saturating_sub(taskbar_y.saturating_sub(130)) / 34;
                 match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), _ => spawn_app_window(info, 3) }
             } else if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
                 DRAG_OFFSET_X.store(x.saturating_sub(wx), Ordering::Relaxed);
