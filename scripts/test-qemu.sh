@@ -136,10 +136,13 @@ run_qemu() {
             sleep 0.2
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
             sleep 0.4
-            # Press and drag in one QMP input batch so the PS/2 device
-            # reports movement with the left button held.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":true}},{"type":"rel","data":{"axis":"x","value":100}},{"type":"rel","data":{"axis":"y","value":80}}]}}\\r\\n'
-            sleep 0.5
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":true}}]}}\\r\\n'
+            sleep 0.3
+            # Prime one packet after the button transition, then drag.
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\\r\\n'
+            sleep 0.3
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":99}},{"type":"rel","data":{"axis":"y","value":79}}]}}\\r\\n'
+            sleep 0.4
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":false}}]}}\\r\\n'
             sleep 0.5
         } | socat -T 1 - "UNIX-CONNECT:$QMP" >/dev/null
