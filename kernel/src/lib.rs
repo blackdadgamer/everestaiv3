@@ -168,7 +168,7 @@ fn draw_onboarding_screen(info: &BootInfo) {
             }
             draw_text(info, 80, 322, 2, b"Use Up or Down, then Enter", (160, 190, 230));
         }
-        _ => {
+        2 => {
             draw_text(info, 80, 96, 3, b"Setup Complete", UI_WHITE);
             draw_text(info, 80, 170, 2, b"Username", (160, 190, 230));
             draw_text(info, 80, 220, 2, b"Timezone", (160, 190, 230));
