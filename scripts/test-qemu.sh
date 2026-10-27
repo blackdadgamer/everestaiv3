@@ -164,7 +164,7 @@ run_qemu() {
             sleep 0.5
             printf 'screendump %s\n' "$TMP_DIR/start-menu.ppm"
             sleep 0.3
-            for step in 1 2 3 4 5; do
+            for step in 1 2 3 4 5 6 7 8; do
                 printf 'mouse_move 0 -20\n'
                 sleep 0.1
             done
