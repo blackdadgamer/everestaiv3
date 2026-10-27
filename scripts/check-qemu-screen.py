@@ -50,6 +50,13 @@ def main() -> int:
             if found < 50:
                 print(f"{label} color missing ({found} pixels).", file=sys.stderr)
                 return 1
+        marker = (110, 190, 255)
+        marker_reverse = (255, 190, 110)
+        marker_count = sum(1 for offset in range(0, len(pixels), 3)
+                           if pixels[offset:offset + 3] in (bytes(marker), bytes(marker_reverse)))
+        if marker_count < 10:
+            print(f"Kernel health marker missing ({marker_count} pixels).", file=sys.stderr)
+            return 1
         wx, wy = width // 8, height // 8
         row_y = wy + 112 + selected * 38
         if not matches_color(wx + 28, row_y + 4, (187, 154, 247)):
@@ -61,7 +68,7 @@ def main() -> int:
         # Status strip uses the same title-bar fill; verify the C:/ path's
         # expected position is inside that strip rather than outside the window.
         status_y = wy + (height * 3 // 4) - 44
-        if not matches_color(wx + 40, status_y + 5, (36, 40, 59)):
+        if not matches_color(wx + 10, status_y + 5, (36, 40, 59)):
             print("File Manager status bar missing.", file=sys.stderr)
             return 1
         print(f"File Manager framebuffer passed: Tokyo Night palette and selected row {selected}.")
