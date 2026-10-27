@@ -129,30 +129,16 @@ run_qemu() {
         {
             printf '{"execute":"qmp_capabilities"}\r\n'
             sleep 0.4
-            # The first PS/2 packet after stream enable can be a sync packet;
-            # prime the packet decoder with a harmless one-pixel motion.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
-            sleep 0.4
-            # Move from the framebuffer center to the File Manager titlebar
-            # (approximately x=200,y=120 at 1280x800). Use small deltas with
-            # time for each PS/2 packet to be consumed; large batched motions
-            # were not reliably reflected by the guest's packet decoder.
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
-                printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-20}},{"type":"rel","data":{"axis":"y","value":20}}]}}\r\n'
-                sleep 0.1
-            done
-            for step in 1 2 3 4 5 6 7 8; do
-                printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-20}}]}}\r\n'
-                sleep 0.1
-            done
-            sleep 0.4
+            # QEMU's active PS/2 mouse accepts absolute pointer coordinates
+            # in the 0..32767 range. Position directly over the title bar to
+            # avoid depending on relative-motion packet scaling in headless CI.
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"abs","data":{"axis":"x","value":5120}},{"type":"abs","data":{"axis":"y","value":4915}}]}}\r\n'
+            sleep 0.5
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":true}}]}}\r\n'
             sleep 0.4
-            # Prime one packet after the button transition, then drag.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
-            sleep 0.3
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":39}},{"type":"rel","data":{"axis":"y","value":9}}]}}\r\n'
-            sleep 0.4
+            # Drag from approximately (200,120) to (240,110) at 1280x800.
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"abs","data":{"axis":"x","value":6144}},{"type":"abs","data":{"axis":"y","value":4505}}]}}\r\n'
+            sleep 0.5
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"button":"left","down":false}}]}}\r\n'
             sleep 0.5
         } | socat -T 1 - "UNIX-CONNECT:$QMP" > "$TMP_DIR/qmp-$boot_number.log"
