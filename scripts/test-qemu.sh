@@ -65,8 +65,9 @@ run_qemu() {
         -m 512M \
         -drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE" \
         -drive "if=pflash,format=raw,file=$VARS_COPY" \
+        -device qemu-xhci,id=xhci \
         -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
-        -device usb-storage,drive=usb,bootindex=1 \
+        -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \
         -drive "if=ide,index=0,media=disk,format=raw,file=$DATA_IMAGE" \
         -display none \
         -monitor "unix:$MONITOR,server,nowait" \
