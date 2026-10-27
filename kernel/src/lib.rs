@@ -478,7 +478,7 @@ fn update_onboarding(info: &BootInfo) {
     while let Some(key) = interrupts::pop_key() {
         match ONBOARDING_STEP.load(Ordering::Relaxed) {
             0 => {
-                if key == b'\n' {
+                if key == b'\\n' {
                     // The current atomic buffer/length are the persisted setup choice.
                     USERNAME_LEN.store(length, Ordering::Relaxed);
                     ONBOARDING_STEP.store(1, Ordering::Relaxed);
@@ -524,7 +524,7 @@ fn update_onboarding(info: &BootInfo) {
                         let length = TERMINAL_LEN.load(Ordering::Relaxed).min(TERMINAL_CAPACITY);
                         let mut line = [0u8; TERMINAL_CAPACITY];
                         for (i, byte) in line.iter_mut().enumerate().take(length) { *byte = TERMINAL_INPUT[i].load(Ordering::Relaxed); }
-                        let saved = filesystem::open_volume().ok().is_some_and(|volume| volume.write_root_file(b\"USER    TXT\", &line[..length]).is_ok());
+                        let saved = filesystem::open_volume().ok().is_some_and(|volume| volume.write_root_file(b"USER    TXT", &line[..length]).is_ok());
                         TERMINAL_SAVED.store(saved as u8, Ordering::Relaxed);
                         TERMINAL_LEN.store(0, Ordering::Relaxed);
                         for slot in &TERMINAL_INPUT { slot.store(0, Ordering::Relaxed); }
