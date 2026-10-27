@@ -89,6 +89,8 @@ sleep 5
     printf 'sendkey down\n'
     sleep 0.3
     printf 'sendkey ret\n'
+    sleep 0.4
+    printf 'sendkey ret\n'
 } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
 sleep 1
 printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
