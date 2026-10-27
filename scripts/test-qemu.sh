@@ -71,7 +71,6 @@ run_qemu() {
         -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
         -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \
         -drive "if=ide,index=0,media=disk,format=raw,file=$DATA_IMAGE" \
-        -device ps2-mouse \
         -display none \
         -monitor "unix:$MONITOR,server,nowait" \
         -serial none \
@@ -114,20 +113,21 @@ run_qemu() {
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
     else
-        # Saved config: test keyboard selection and drag the title bar with PS/2 events.
+        # Send each monitor action on its own connection so one unsupported
+        # input command cannot discard the keyboard-selection test.
         sleep 2
-        {
-            printf 'sendkey down\\n'
-            sleep 0.4
-            printf 'mouse_move -120 -250\\n'
-            sleep 0.4
-            printf 'mouse_button 1\\n'
-            sleep 0.3
-            printf 'mouse_move 100 80\\n'
-            sleep 0.4
-            printf 'mouse_button 0\\n'
-            sleep 0.5
-        } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        printf 'sendkey down\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        sleep 0.5
+        printf 'mouse_set 0\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        sleep 0.2
+        printf 'mouse_move -120 -250\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        sleep 0.4
+        printf 'mouse_button 1\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        sleep 0.3
+        printf 'mouse_move 100 80\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        sleep 0.4
+        printf 'mouse_button 0\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        sleep 0.5
     fi
 
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
