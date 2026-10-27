@@ -410,7 +410,9 @@ fn draw_desktop(info: &BootInfo) {
     let taskbar_height = 36usize.min(info.height);
     let taskbar_y = info.height.saturating_sub(taskbar_height);
     fill_rect(info, 0, taskbar_y, info.width, taskbar_height, TASKBAR_BG);
-    fill_rect(info, 8, taskbar_y + 4, 104, 28, TITLEBAR_BG);\n    draw_border(info, 8, taskbar_y + 4, 104, 28, 1, FILE_SELECTION);\n    draw_text(info, 22, taskbar_y + 12, 1, b"START", UI_WHITE);
+    fill_rect(info, 8, taskbar_y + 4, 104, 28, TITLEBAR_BG);
+    draw_border(info, 8, taskbar_y + 4, 104, 28, 1, FILE_SELECTION);
+    draw_text(info, 22, taskbar_y + 12, 1, b"START", UI_WHITE);
     draw_text(info, info.width.saturating_sub(58), taskbar_y + 12, 1, b"12:00", FILE_TEXT);
     if info.width >= 180 { fill_rect(info, info.width - 160, taskbar_y + 16, 4, 4, (110, 190, 255)); }
     draw_mouse_cursor(info, CURSOR_X.load(Ordering::Relaxed), CURSOR_Y.load(Ordering::Relaxed));
