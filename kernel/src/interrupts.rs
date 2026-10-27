@@ -188,6 +188,7 @@ mod tests {
     fn translates_top_left_and_common_control_keys() {
         assert_eq!(translate(0x29), 0x60);
         assert_eq!(translate(0x39), b' ');
+        assert_eq!(translate(0x0E), 8);
         assert_eq!(translate(0x1C), b'\n');
         assert_eq!(translate(0x01), 0);
     }
