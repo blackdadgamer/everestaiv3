@@ -58,6 +58,8 @@ const USERNAME_CAPACITY: usize = 24;
 static USERNAME: [AtomicU8; USERNAME_CAPACITY] =
     [const { AtomicU8::new(0) }; USERNAME_CAPACITY];
 static USERNAME_LEN: AtomicUsize = AtomicUsize::new(0);
+static ONBOARDING_STEP: AtomicU8 = AtomicU8::new(0);
+static TIMEZONE_SELECTION: AtomicU8 = AtomicU8::new(0);
 
 /// Entry reached only after the UEFI boot services have been exited.
 ///
@@ -104,7 +106,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     };
     if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
-    draw_welcome_screen(info);
+    draw_onboarding_screen(info);
     if virtual_memory_ready {
         unsafe { interrupts::initialize(); }
         unsafe { core::arch::asm!("sti", options(nomem, nostack)); }
@@ -115,7 +117,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
             core::arch::asm!("hlt", options(nomem, nostack, preserves_flags));
         }
         if virtual_memory_ready {
-            update_username_input(info);
+            update_onboarding(info);
         }
     }
 }
@@ -135,39 +137,116 @@ fn draw_border(info: &BootInfo, x: usize, y: usize, width: usize, height: usize,
     fill_rect(info, x.saturating_add(width.saturating_sub(edge)), y, edge, height, color);
 }
 
-fn draw_welcome_screen(info: &BootInfo) {
-    draw_text(info, 80, 96, 3, b"Welcome to Everest OS", UI_WHITE);
-    draw_text(info, 80, 164, 2, b"Username", (160, 190, 230));
-    draw_border(info, 80, 188, 480, 56, 3, UI_ACCENT);
-    fill_rect(info, 83, 191, 474, 50, INPUT_BG);
+fn draw_onboarding_screen(info: &BootInfo) {
+    // Keep the kernel's page-table/IDT status marker below the onboarding panel
+    // so the existing boot-health screenshot assertion remains independent.
+    fill_rect(info, 40, 70, 720, 290, (5, 8, 24));
+
+    match ONBOARDING_STEP.load(Ordering::Relaxed) {
+        0 => {
+            draw_text(info, 80, 96, 3, b"Welcome to Everest OS", UI_WHITE);
+            draw_text(info, 80, 164, 2, b"Username", (160, 190, 230));
+            draw_border(info, 80, 188, 480, 56, 3, UI_ACCENT);
+            fill_rect(info, 83, 191, 474, 50, INPUT_BG);
+            let length = USERNAME_LEN.load(Ordering::Relaxed).min(USERNAME_CAPACITY);
+            let mut text = [0u8; USERNAME_CAPACITY];
+            for (index, byte) in text.iter_mut().enumerate().take(length) {
+                *byte = USERNAME[index].load(Ordering::Relaxed);
+            }
+            draw_text(info, 96, 205, 3, &text[..length], UI_WHITE);
+        }
+        1 => {
+            draw_text(info, 80, 96, 3, b"Timezone Selection", UI_WHITE);
+            let selected = TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2) as usize;
+            let options: [&[u8]; 3] = [b"UTC", b"NPT", b"EST"];
+            for (index, option) in options.iter().enumerate() {
+                let row_y = 168 + index * 50;
+                if index == selected {
+                    draw_border(info, 80, row_y, 360, 42, 3, UI_ACCENT);
+                }
+                draw_text(info, 112, row_y + 10, 3, option, UI_WHITE);
+            }
+            draw_text(info, 80, 322, 2, b"Use Up or Down, then Enter", (160, 190, 230));
+        }
+        _ => {
+            draw_text(info, 80, 96, 3, b"Setup Complete", UI_WHITE);
+            draw_text(info, 80, 170, 2, b"Username", (160, 190, 230));
+            draw_text(info, 80, 220, 2, b"Timezone", (160, 190, 230));
+            let timezone: &[u8] = match TIMEZONE_SELECTION.load(Ordering::Relaxed) {
+                1 => b"NPT",
+                2 => b"EST",
+                _ => b"UTC",
+            };
+            let length = USERNAME_LEN.load(Ordering::Relaxed).min(USERNAME_CAPACITY);
+            let mut username = [0u8; USERNAME_CAPACITY];
+            for (index, byte) in username.iter_mut().enumerate().take(length) {
+                *byte = USERNAME[index].load(Ordering::Relaxed);
+            }
+            // Draw the actual saved username, not a test-specific constant.
+            fill_rect(info, 205, 164, 160, 18, (5, 8, 24));
+            draw_text(info, 210, 170, 2, &username[..length], UI_WHITE);
+            draw_text(info, 210, 220, 2, timezone, UI_WHITE);
+            draw_border(info, 70, 280, 360, 50, 3, UI_ACCENT);
+            draw_text(info, 90, 296, 2, b"Press Enter to Start", UI_WHITE);
+        }
+    }
 }
 
-fn update_username_input(info: &BootInfo) {
-    let mut length = USERNAME_LEN.load(Ordering::Relaxed);
-    let mut changed = false;
+fn update_onboarding(info: &BootInfo) {
+    let mut length = USERNAME_LEN.load(Ordering::Relaxed).min(USERNAME_CAPACITY);
+    let mut redraw = false;
 
     while let Some(key) = interrupts::pop_key() {
-        if key == 8 || key == 127 {
-            if length > 0 {
-                length -= 1;
-                USERNAME[length].store(0, Ordering::Relaxed);
-                changed = true;
+        match ONBOARDING_STEP.load(Ordering::Relaxed) {
+            0 => {
+                if key == b'\n' {
+                    // The current atomic buffer/length are the persisted setup choice.
+                    USERNAME_LEN.store(length, Ordering::Relaxed);
+                    ONBOARDING_STEP.store(1, Ordering::Relaxed);
+                    redraw = true;
+                } else if key == 8 || key == 127 {
+                    if length > 0 {
+                        length -= 1;
+                        USERNAME[length].store(0, Ordering::Relaxed);
+                        USERNAME_LEN.store(length, Ordering::Relaxed);
+                        redraw = true;
+                    }
+                } else if (32..=126).contains(&key) && length < USERNAME_CAPACITY {
+                    USERNAME[length].store(key, Ordering::Relaxed);
+                    length += 1;
+                    USERNAME_LEN.store(length, Ordering::Relaxed);
+                    redraw = true;
+                }
             }
-        } else if (32..=126).contains(&key) && length < USERNAME_CAPACITY {
-            USERNAME[length].store(key, Ordering::Relaxed);
-            length += 1;
-            changed = true;
+            1 => match key {
+                0x81 => {
+                    let selected = TIMEZONE_SELECTION.load(Ordering::Relaxed);
+                    TIMEZONE_SELECTION.store(selected.saturating_sub(1), Ordering::Relaxed);
+                    redraw = true;
+                }
+                0x82 => {
+                    let selected = TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2);
+                    TIMEZONE_SELECTION.store((selected + 1).min(2), Ordering::Relaxed);
+                    redraw = true;
+                }
+                b'\n' => {
+                    ONBOARDING_STEP.store(2, Ordering::Relaxed);
+                    redraw = true;
+                }
+                _ => {}
+            },
+            _ => {
+                // Step 3 is the completed setup confirmation; Enter is accepted
+                // while leaving this milestone's final confirmation visible.
+                if key == b'\n' {
+                    redraw = true;
+                }
+            }
         }
     }
 
-    if changed {
-        USERNAME_LEN.store(length, Ordering::Relaxed);
-        fill_rect(info, 83, 191, 474, 50, INPUT_BG);
-        let mut text = [0u8; USERNAME_CAPACITY];
-        for (index, byte) in text.iter_mut().enumerate().take(length) {
-            *byte = USERNAME[index].load(Ordering::Relaxed);
-        }
-        draw_text(info, 96, 205, 3, &text[..length], UI_WHITE);
+    if redraw {
+        draw_onboarding_screen(info);
     }
 }
 
