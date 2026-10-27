@@ -147,6 +147,8 @@ run_qemu() {
             sleep 0.5
             printf 'mouse_button 0\n'
             sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/drag-screen.ppm"
+            sleep 0.3
             # Move to START, click to open the launcher, then choose Terminal.
             for step in 1 2 3 4 5 6 7 8 9 10; do
                 printf 'mouse_move -20 0\n'
@@ -182,7 +184,7 @@ run_qemu() {
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --file-manager --selected-index 0 --username admin --timezone NPT $([ "$boot_number" = "2" ] && printf -- "--mouse-drag --launcher-terminal"); then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--launcher-terminal"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi
