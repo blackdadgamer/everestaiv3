@@ -4,7 +4,7 @@ set -eu
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-for command_name in qemu-system-x86_64 mkfs.vfat mmd mcopy mtype socat python3; do
+for command_name in xvfb-run qemu-system-x86_64 mkfs.vfat mmd mcopy mtype socat python3; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
         printf 'Missing QEMU test dependency: %s\n' "$command_name" >&2
         exit 2
@@ -62,7 +62,7 @@ run_qemu() {
     SCREEN="$TMP_DIR/everest-screen-$boot_number.ppm"
     MONITOR="$TMP_DIR/qemu-monitor-$boot_number.sock"
     QEMU_LOG="$TMP_DIR/qemu-$boot_number.log"
-    qemu-system-x86_64 \
+    xvfb-run -a qemu-system-x86_64 \
         -machine pc \
         -m 512M \
         -drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE" \
@@ -71,7 +71,7 @@ run_qemu() {
         -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
         -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \
         -drive "if=ide,index=0,media=disk,format=raw,file=$DATA_IMAGE" \
-        -display none \
+        -display gtk \
         -monitor "unix:$MONITOR,server,nowait" \
         -serial none \
         -net none \
@@ -113,21 +113,21 @@ run_qemu() {
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
     else
-        # Send each monitor action on its own connection so one unsupported
-        # input command cannot discard the keyboard-selection test.
+        # GTK under Xvfb provides QEMU's active PS/2 mouse input backend.
+        # Keep actions on one monitor connection and allow each packet to arrive.
         sleep 2
-        printf 'sendkey down\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-        sleep 0.5
-        printf 'mouse_set 0\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-        sleep 0.2
-        printf 'mouse_move -120 -250\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-        sleep 0.4
-        printf 'mouse_button 1\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-        sleep 0.3
-        printf 'mouse_move 100 80\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-        sleep 0.4
-        printf 'mouse_button 0\\n' | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
-        sleep 0.5
+        {
+            printf 'sendkey down\\n'
+            sleep 0.5
+            printf 'mouse_move -120 -250\\n'
+            sleep 0.4
+            printf 'mouse_button 1\\n'
+            sleep 0.3
+            printf 'mouse_move 100 80\\n'
+            sleep 0.4
+            printf 'mouse_button 0\\n'
+            sleep 0.5
+        } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     fi
 
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
