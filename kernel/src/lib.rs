@@ -250,7 +250,7 @@ fn draw_desktop(info: &BootInfo) {
         *byte = USERNAME[index].load(Ordering::Relaxed);
     }
     draw_text(info, window_x + 24, window_y + 140, 2, &username[..length], UI_WHITE);
-    draw_text(info, window_x + 24, window_y + 162, 1, b"TIMEZONE:", (160, 190, 230));
+    draw_text(info, window_x + 24, window_y + 162, 1, b"TIMEZONE:", UI_WHITE);
     let timezone: &[u8] = match TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2) {
         1 => b"NPT",
         2 => b"EST",
