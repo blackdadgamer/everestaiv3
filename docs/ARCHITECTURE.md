@@ -92,3 +92,18 @@ AI system actions must use a narrow broker interface. The AI service may request
 The first boot milestone is complete only when the x86-64 EFI executable builds reproducibly, a script places it at EFI/BOOT/BOOTX64.EFI, and it boots in QEMU/OVMF and on at least one physical reference PC. On supported GOP hardware, the splash and early-kernel status screens must appear. The exact test machines, firmware settings, and limitations must be documented.
 
 The current code includes an early kernel handoff but does not yet establish its own page tables, parse the memory map, install an IDT, allocate memory, run processes, or provide device drivers. Physical and emulator boot verification remains outstanding.
+
+## 10. Desktop shell (implemented; early visual milestone)
+
+The kernel can render a first desktop shell directly to the boot-provided framebuffer after the onboarding flow reaches Setup Complete and Enter advances to the desktop state. The current shell is deliberately static and pixel-rendered:
+
+- solid dark navy background;
+- bottom taskbar with a bordered `START` button at the left;
+- fixed `12:00` clock at the right and a small blue kernel-health marker;
+- centered bordered `Everest Terminal` window with a title bar and body text including `Everest OS ready`, `Welcome,` and the onboarding username.
+
+The QEMU/OVMF smoke test sends the keyboard sequence needed to reach the desktop, captures the framebuffer, and checks representative background, taskbar, button, window, clock, health-marker and text pixels/glyphs. Passing this test proves the expected rendering path under the tested emulator configuration only; it does not prove physical GPU/display compatibility or a general-purpose desktop environment.
+
+The Version 1.0 visual target is recorded at [`docs/desktop-shell-mockup.svg`](desktop-shell-mockup.svg). Treat it as a visual direction reference: any decorative iconography, window controls, or health-status wording shown in the mockup are illustrative unless separately implemented and asserted by the framebuffer test.
+
+Current limitations: no compositor, movable/resizable windows, functional Start menu, live clock, applications/process model, user-space GUI, or physical hardware verification. Continue to update the QEMU assertions when renderer behavior changes.
