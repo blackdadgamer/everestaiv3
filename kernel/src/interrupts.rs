@@ -114,7 +114,7 @@ pub fn key_count()->u64{KEY_COUNT.load(Ordering::Relaxed)}
 fn translate(scancode:u8)->u8{
     const ROW1:&[u8]=b"1234567890-=";
     const ROW2:&[u8]=b"qwertyuiop[]";
-    const ROW3:&[u8]=b"asdfghjkl;'";
+    const ROW3:&[u8]=b"asdfghjkl;'`";
     const ROW4:&[u8]=b"zxcvbnm,./";
     match scancode {
         0x02..=0x0D=>ROW1[(scancode-0x02) as usize],
@@ -134,5 +134,34 @@ pub unsafe extern "C" fn everest_irq_dispatch(vector:u64){
         }
         if vector>=40 {outb(0xA0,0x20);}
         outb(0x20,0x20);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::translate;
+
+    #[test]
+    fn translates_every_key_in_each_supported_row_without_panicking() {
+        for scancode in 0x02..=0x0D {
+            assert_ne!(translate(scancode), 0);
+        }
+        for scancode in 0x10..=0x1B {
+            assert_ne!(translate(scancode), 0);
+        }
+        for scancode in 0x1E..=0x29 {
+            assert_ne!(translate(scancode), 0);
+        }
+        for scancode in 0x2C..=0x35 {
+            assert_ne!(translate(scancode), 0);
+        }
+    }
+
+    #[test]
+    fn translates_top_left_and_common_control_keys() {
+        assert_eq!(translate(0x29), 0x60);
+        assert_eq!(translate(0x39), b' ');
+        assert_eq!(translate(0x1C), b'\n');
+        assert_eq!(translate(0x01), 0);
     }
 }
