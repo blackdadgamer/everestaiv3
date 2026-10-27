@@ -36,7 +36,7 @@ jobs:
       - name: Install QEMU/OVMF test tools
         timeout-minutes: 20
         run: |
-          packages="qemu-system-x86 qemu-system-gui xvfb xauth ovmf dosfstools mtools socat"
+          packages="qemu-system-x86 ovmf dosfstools mtools socat"
           if ! sudo apt-get install -y --no-install-recommends $packages; then
             sudo apt-get update -o Acquire::Retries=1 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10
             sudo apt-get install -y $packages
