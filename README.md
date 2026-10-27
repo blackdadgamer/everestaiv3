@@ -2,7 +2,7 @@
 
 **Everest OS** is an independent operating-system project being implemented from scratch, primarily in Rust. The first target is real x86-64 PCs booting through UEFI; virtual machines are a test environment, not the product target. AArch64 support is planned after the initial x86-64 foundation stabilizes.
 
-> **Current status:** first implementation milestone. The repository now contains a Rust UEFI application and an early kernel entry linked into the same EFI executable. CI compiles the current code and the QEMU/OVMF screenshot smoke test passes. Physical-PC boot remains unverified.
+> **Current status:** early kernel foundations plus a framebuffer-rendered desktop shell. The UEFI/QEMU/OVMF CI path passes, including screenshot assertions for the onboarding-to-desktop transition, dark background, bottom taskbar, `START` button, `12:00` clock, health marker, and bordered `Everest Terminal` window. Physical-PC boot and hardware compatibility remain unverified.
 
 ## Project principles
 
@@ -12,6 +12,12 @@
 - **Rust-first:** use Rust for system code, with architecture-specific assembly only where needed and documented.
 - **Security by design:** isolate userspace from the kernel, use least privilege, and require permission for sensitive automated actions.
 - **Evidence over claims:** a feature is supported only after a reproducible test or documented physical-device verification.
+
+## Current desktop-shell milestone
+
+The onboarding flow can transition into a first pixel-rendered desktop shell. The shell has a solid dark navy background, a bottom taskbar, a bordered `START` button on the left, a fixed `12:00` clock on the right, a small blue kernel-health marker, and a centered bordered `Everest Terminal` window. The terminal window displays `Everest OS ready`, `Welcome,` and the username saved during onboarding. The current shell is a framebuffer drawing, not a full window manager: taskbar controls are not yet interactive, the clock is a placeholder, and window movement/resizing and physical display support are not implemented.
+
+The visual direction for Version 1.0 is documented in [the desktop-shell mockup](docs/desktop-shell-mockup.svg). It is a design target; the SVG includes illustrative decoration that is not necessarily present in the current kernel renderer. The QEMU screenshot test verifies the actual simpler pixel output, not every decorative mockup detail.
 
 ## First implementation milestone
 
