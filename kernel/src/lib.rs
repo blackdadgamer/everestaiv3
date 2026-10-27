@@ -56,6 +56,7 @@ const UEFI_MEMORY_DESCRIPTOR_VERSION: u32 = 1;
 const UEFI_PAGE_SIZE: u64 = 4096;
 const MAX_MEMORY_MAP_BYTES: usize = 64 * 1024 * 1024;
 const USERNAME_CAPACITY: usize = 24;
+const CONFIG_FILE: &[u8; 11] = b"CONFIG  TXT";
 static USERNAME: [AtomicU8; USERNAME_CAPACITY] =
     [const { AtomicU8::new(0) }; USERNAME_CAPACITY];
 static USERNAME_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -133,6 +134,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     };
     if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
     load_demo_file();
+    load_configuration();
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
     draw_onboarding_screen(info);
     if virtual_memory_ready {
@@ -248,6 +250,13 @@ fn draw_desktop(info: &BootInfo) {
         *byte = USERNAME[index].load(Ordering::Relaxed);
     }
     draw_text(info, window_x + 24, window_y + 140, 2, &username[..length], UI_WHITE);
+    draw_text(info, window_x + 24, window_y + 162, 1, b"TIMEZONE:", UI_WHITE);
+    let timezone: &[u8] = match TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2) {
+        1 => b"NPT",
+        2 => b"EST",
+        _ => b"UTC",
+    };
+    draw_text(info, window_x + 24 + 9 * 6, window_y + 162, 1, timezone, UI_WHITE);
     draw_text(info, window_x + 24, window_y + 176, 1, b"FAT32 FILE: HELLO.TXT", (110, 190, 255));
     if DISK_TEXT_OK.load(Ordering::Relaxed) == 1 {
         let disk_length = DISK_TEXT_LEN.load(Ordering::Relaxed).min(DISK_TEXT_CAPACITY);
@@ -270,6 +279,70 @@ fn draw_desktop(info: &BootInfo) {
     if info.width >= 180 {
         fill_rect(info, info.width - 160, taskbar_y + 26, 4, 4, (110, 190, 255));
     }
+}
+
+fn load_configuration() {
+    let Ok(volume) = filesystem::open_volume() else { return; };
+    let Ok((cluster, size)) = volume.find_root_file(CONFIG_FILE) else { return; };
+    let mut bytes = [0u8; 128];
+    let Ok(length) = volume.read_file(cluster, size, &mut bytes) else { return; };
+    let data = &bytes[..length];
+    let mut username = None;
+    let mut timezone = None;
+    for line in data.split(|byte| *byte == b'\n') {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        if let Some(value) = line.strip_prefix(b"USERNAME=") { username = Some(value); }
+        if let Some(value) = line.strip_prefix(b"TIMEZONE=") { timezone = Some(value); }
+    }
+    let Some(saved_name) = username else { return; };
+    let Some(saved_zone) = timezone else { return; };
+    if saved_name.is_empty() || saved_name.len() > USERNAME_CAPACITY
+        || !saved_name.iter().all(|b| (32..=126).contains(b)) {
+        return;
+    }
+    let zone = match saved_zone {
+        b"UTC" => 0,
+        b"NPT" => 1,
+        b"EST" => 2,
+        _ => return,
+    };
+    for (index, byte) in saved_name.iter().enumerate() {
+        USERNAME[index].store(*byte, Ordering::Relaxed);
+    }
+    for index in saved_name.len()..USERNAME_CAPACITY {
+        USERNAME[index].store(0, Ordering::Relaxed);
+    }
+    USERNAME_LEN.store(saved_name.len(), Ordering::Relaxed);
+    TIMEZONE_SELECTION.store(zone, Ordering::Relaxed);
+    ONBOARDING_STEP.store(3, Ordering::Relaxed);
+}
+
+fn save_configuration() -> bool {
+    let length = USERNAME_LEN.load(Ordering::Relaxed).min(USERNAME_CAPACITY);
+    if length == 0 { return false; }
+    let mut bytes = [0u8; 64];
+    let mut cursor = 0usize;
+    let name_prefix = b"USERNAME=";
+    bytes[cursor..cursor + name_prefix.len()].copy_from_slice(name_prefix);
+    cursor += name_prefix.len();
+    for index in 0..length {
+        bytes[cursor] = USERNAME[index].load(Ordering::Relaxed);
+        cursor += 1;
+    }
+    bytes[cursor] = b'\n'; cursor += 1;
+    let zone_prefix = b"TIMEZONE=";
+    bytes[cursor..cursor + zone_prefix.len()].copy_from_slice(zone_prefix);
+    cursor += zone_prefix.len();
+    let zone: &[u8] = match TIMEZONE_SELECTION.load(Ordering::Relaxed).min(2) {
+        1 => b"NPT",
+        2 => b"EST",
+        _ => b"UTC",
+    };
+    bytes[cursor..cursor + zone.len()].copy_from_slice(zone);
+    cursor += zone.len();
+    bytes[cursor] = b'\n'; cursor += 1;
+    let Ok(volume) = filesystem::open_volume() else { return false; };
+    volume.write_root_file(CONFIG_FILE, &bytes[..cursor]).is_ok()
 }
 
 fn update_onboarding(info: &BootInfo) {
@@ -319,8 +392,11 @@ fn update_onboarding(info: &BootInfo) {
                 // Step 3 is the completed setup confirmation; Enter is accepted
                 // while leaving this milestone's final confirmation visible.
                 if key == b'\n' {
-                    ONBOARDING_STEP.store(3, Ordering::Relaxed);
-                    redraw = true;
+                    // Only leave setup once the configuration is durable on disk.
+                    if save_configuration() {
+                        ONBOARDING_STEP.store(3, Ordering::Relaxed);
+                        redraw = true;
+                    }
                 }
             }
         }

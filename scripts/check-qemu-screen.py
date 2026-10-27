@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: check-qemu-screen.py SCREEN.ppm", file=sys.stderr)
+    if len(sys.argv) < 2 or len(sys.argv) > 6 or (len(sys.argv) - 2) % 2 != 0:
+        print("usage: check-qemu-screen.py SCREEN.ppm [--username NAME] [--timezone ZONE]", file=sys.stderr)
         return 2
 
     data = Path(sys.argv[1]).read_bytes()
@@ -78,6 +78,10 @@ def main() -> int:
         "R": [30, 17, 17, 30, 20, 18, 17],
         "S": [15, 16, 16, 14, 1, 1, 30],
         "T": [31, 4, 4, 4, 4, 4, 4],
+        "Z": [31, 1, 2, 4, 8, 16, 31],
+        "P": [30, 17, 17, 30, 16, 16, 16],
+        "U": [17, 17, 17, 17, 17, 17, 14],
+        "C": [14, 17, 16, 16, 16, 17, 14],
         "V": [17, 17, 17, 17, 17, 10, 4],
         "0": [14, 17, 19, 21, 25, 17, 14],
         "1": [4, 12, 4, 4, 4, 4, 14],
@@ -128,6 +132,27 @@ def main() -> int:
     if not verify_text("Everest Terminal", window_x + 24, window_y + 13, 2, (33, 47, 74)):
         print("Terminal window title was not rendered correctly.", file=sys.stderr)
         return 1
+    if "--username" in sys.argv:
+        try:
+            username = sys.argv[sys.argv.index("--username") + 1]
+        except IndexError:
+            print("--username requires a value.", file=sys.stderr)
+            return 2
+        if not verify_text(username, window_x + 24, window_y + 140, 2, (14, 20, 36)):
+            print("Expected saved username was not rendered in the desktop.", file=sys.stderr)
+            return 1
+    if "--timezone" in sys.argv:
+        try:
+            timezone = sys.argv[sys.argv.index("--timezone") + 1]
+        except IndexError:
+            print("--timezone requires a value.", file=sys.stderr)
+            return 2
+        if not verify_text("TIMEZONE:", window_x + 24, window_y + 162, 1, (14, 20, 36)):
+            print("Timezone label was not rendered correctly.", file=sys.stderr)
+            return 1
+        if not verify_text(timezone, window_x + 24 + 9 * 6, window_y + 162, 1, (14, 20, 36)):
+            print("Expected saved timezone was not rendered in the desktop.", file=sys.stderr)
+            return 1
     if not verify_text("START", 30, height - 36, 2, (42, 62, 96)):
         print("Taskbar Start button label was not rendered correctly.", file=sys.stderr)
         return 1

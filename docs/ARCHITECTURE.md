@@ -119,3 +119,10 @@ Scope and limitations:
 - File names are short 8.3 names; long-file-name entries are skipped.
 - Reads are read-only and bounded; there is no write support, caching, VFS, path traversal, subdirectory support, or general-purpose filesystem API.
 - The kernel still needs real hardware testing. A passing emulator test does not establish physical disk-controller compatibility.
+
+
+## 12. Persistent onboarding configuration
+
+The early FAT32 path now includes bounded sector writes through legacy primary-master ATA PIO. When setup is completed, the kernel writes a small root-level `CONFIG.TXT` record with `USERNAME=` and `TIMEZONE=` lines. Boot probes the same FAT32 volume before rendering onboarding, validates both values against the supported timezone choices, and restores them when valid. Missing, malformed, or unsupported configuration falls back to onboarding.
+
+This is a narrowly scoped configuration-file writer, not a general writable filesystem: the file must fit in one cluster and is stored as a root-directory 8.3 entry. QEMU CI uses a disposable persistent FAT32 data image, completes setup on the first boot, verifies the on-disk bytes from the host, then starts a second VM with the same image and no keyboard input and checks that the desktop renders the saved username and timezone. The feature is validated in QEMU with legacy IDE PIO only; physical-device persistence and other storage controllers remain unverified.

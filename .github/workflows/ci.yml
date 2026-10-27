@@ -52,8 +52,7 @@ jobs:
           name: everest-os-uefi-boot-and-diagnostics
           path: |
             dist/EFI/BOOT/BOOTX64.EFI
-            dist/qemu-debug-screen.ppm
-            dist/qemu-debug.log
+            dist/qemu-debug-*
             Cargo.lock
           if-no-files-found: warn
           retention-days: 14
