@@ -1,4 +1,4 @@
-//! Legacy 8259 PIC, PIT clock and PS/2 keyboard interrupt support.
+//! Legacy 8259 PIC, PIT clock, PS/2 keyboard and auxiliary mouse support.
 use core::sync::atomic::{AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use core::arch::{asm, global_asm};
 
@@ -10,6 +10,34 @@ static KEY_COUNT: AtomicU64 = AtomicU64::new(0);
 const KEY_QUEUE_CAPACITY: usize = 64;
 static KEY_QUEUE: [AtomicU8; KEY_QUEUE_CAPACITY] =
     [const { AtomicU8::new(0) }; KEY_QUEUE_CAPACITY];
+
+// IRQ12 is the sole producer; the kernel loop is the sole consumer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MouseEvent { pub dx: i8, pub dy: i8, pub buttons: u8 }
+const MOUSE_QUEUE_CAPACITY: usize = 32;
+static MOUSE_QUEUE: [AtomicUsize; MOUSE_QUEUE_CAPACITY] =
+    [const { AtomicUsize::new(0) }; MOUSE_QUEUE_CAPACITY];
+static MOUSE_QUEUE_HEAD: AtomicUsize = AtomicUsize::new(0);
+static MOUSE_QUEUE_TAIL: AtomicUsize = AtomicUsize::new(0);
+static MOUSE_PACKET_INDEX: AtomicU8 = AtomicU8::new(0);
+static MOUSE_PACKET: [AtomicU8; 3] = [const { AtomicU8::new(0) }; 3];
+static MOUSE_AVAILABLE: AtomicU8 = AtomicU8::new(0);
+
+fn enqueue_mouse(event: MouseEvent) {
+    let head = MOUSE_QUEUE_HEAD.load(Ordering::Relaxed);
+    let next = (head + 1) % MOUSE_QUEUE_CAPACITY;
+    if next == MOUSE_QUEUE_TAIL.load(Ordering::Acquire) { return; }
+    let packed = event.dx as u8 as usize | ((event.dy as u8 as usize) << 8) | ((event.buttons as usize) << 16);
+    MOUSE_QUEUE[head].store(packed, Ordering::Relaxed);
+    MOUSE_QUEUE_HEAD.store(next, Ordering::Release);
+}
+pub fn pop_mouse_event() -> Option<MouseEvent> {
+    let tail = MOUSE_QUEUE_TAIL.load(Ordering::Relaxed);
+    if tail == MOUSE_QUEUE_HEAD.load(Ordering::Acquire) { return None; }
+    let packed = MOUSE_QUEUE[tail].load(Ordering::Relaxed);
+    MOUSE_QUEUE_TAIL.store((tail + 1) % MOUSE_QUEUE_CAPACITY, Ordering::Release);
+    Some(MouseEvent { dx: packed as u8 as i8, dy: (packed >> 8) as u8 as i8, buttons: (packed >> 16) as u8 })
+}
 static QUEUE_HEAD: AtomicUsize = AtomicUsize::new(0);
 static QUEUE_TAIL: AtomicUsize = AtomicUsize::new(0);
 
@@ -118,20 +146,68 @@ pub(crate) fn stubs() -> [usize; 16] {
 unsafe fn outb(port:u16,value:u8){ unsafe{asm!("out dx, al",in("dx")port,in("al")value,options(nomem,nostack,preserves_flags))}; }
 unsafe fn inb(port:u16)->u8{let v:u8;unsafe{asm!("in al, dx",in("dx")port,out("al")v,options(nomem,nostack,preserves_flags))};v}
 unsafe fn wait(){unsafe{outb(0x80,0)}}
-/// Call with IF clear after loading the IDT.
+unsafe fn wait_input_clear() -> bool {
+    for _ in 0..100_000 { if unsafe { inb(0x64) } & 0x02 == 0 { return true; } }
+    false
+}
+unsafe fn wait_output_full() -> bool {
+    for _ in 0..100_000 { if unsafe { inb(0x64) } & 0x01 != 0 { return true; } }
+    false
+}
+unsafe fn controller_command(command: u8) -> bool {
+    if !unsafe { wait_input_clear() } { return false; }
+    unsafe { outb(0x64, command); } true
+}
+unsafe fn read_controller_config() -> Option<u8> {
+    if !unsafe { controller_command(0x20) } || !unsafe { wait_output_full() } { return None; }
+    Some(unsafe { inb(0x60) })
+}
+unsafe fn write_controller_config(value: u8) -> bool {
+    if !unsafe { controller_command(0x60) } || !unsafe { wait_input_clear() } { return false; }
+    unsafe { outb(0x60, value); } true
+}
+unsafe fn mouse_command(value: u8) -> bool {
+    if !unsafe { wait_input_clear() } { return false; }
+    unsafe { outb(0x64, 0xD4); }
+    if !unsafe { wait_input_clear() } { return false; }
+    unsafe { outb(0x60, value); }
+    if !unsafe { wait_output_full() } { return false; }
+    unsafe { inb(0x60) == 0xFA }
+}
+unsafe fn initialize_mouse() -> bool {
+    if !unsafe { controller_command(0xA8) } { return false; }
+    let Some(mut config) = (unsafe { read_controller_config() }) else { return false; };
+    config = (config | 0x02) & !0x20; // IRQ12 enabled, auxiliary clock enabled.
+    if !unsafe { write_controller_config(config) } { return false; }
+    if !unsafe { mouse_command(0xF6) } || !unsafe { mouse_command(0xF4) } { return false; }
+    MOUSE_PACKET_INDEX.store(0, Ordering::Relaxed);
+    MOUSE_AVAILABLE.store(1, Ordering::Release);
+    true
+}
+fn handle_mouse_byte(byte: u8) {
+    let index = MOUSE_PACKET_INDEX.load(Ordering::Relaxed) as usize;
+    if index == 0 && byte & 0x08 == 0 { return; }
+    MOUSE_PACKET[index].store(byte, Ordering::Relaxed);
+    if index < 2 { MOUSE_PACKET_INDEX.store((index + 1) as u8, Ordering::Relaxed); return; }
+    MOUSE_PACKET_INDEX.store(0, Ordering::Relaxed);
+    let flags = MOUSE_PACKET[0].load(Ordering::Relaxed);
+    if flags & 0xC0 != 0 { return; }
+    let dx = MOUSE_PACKET[1].load(Ordering::Relaxed) as i8;
+    let dy = -(MOUSE_PACKET[2].load(Ordering::Relaxed) as i8);
+    enqueue_mouse(MouseEvent { dx, dy, buttons: flags & 0x07 });
+}
+/// Call with IF clear after loading the IDT. Controller waits are bounded.
 pub unsafe fn initialize(){
     unsafe {
-        // Remap master/slave PIC vectors to 0x20 and 0x28.
         outb(0x20,0x11); wait(); outb(0xA0,0x11); wait();
         outb(0x21,0x20); wait(); outb(0xA1,0x28); wait();
         outb(0x21,0x04); wait(); outb(0xA1,0x02); wait();
         outb(0x21,0x01); wait(); outb(0xA1,0x01); wait();
-        // Unmask PIT IRQ0 and keyboard IRQ1 only.
-        outb(0x21,0xFC); outb(0xA1,0xFF);
-        // PIT channel 0, square wave, approximately 100 Hz.
+        outb(0x21,0xF8); outb(0xA1,0xFF);
         outb(0x43,0x36); outb(0x40,(11932u16 & 0xff) as u8); outb(0x40,(11932u16 >> 8) as u8);
-        // Enable keyboard IRQ; discard stale output byte if present.
         let _ = inb(0x60);
+        if initialize_mouse() { outb(0x21,0xF8); outb(0xA1,0xEF); }
+        else { outb(0x21,0xFC); outb(0xA1,0xFF); }
     }
 }
 pub fn ticks()->u64{TICKS.load(Ordering::Relaxed)}
@@ -157,6 +233,7 @@ pub unsafe extern "C" fn everest_irq_dispatch(vector:u64){
         match vector {
             32=>{TICKS.fetch_add(1,Ordering::Relaxed);},
             33=>{let code=inb(0x60); if code & 0x80==0 {let ch=translate(code);if ch!=0{LAST_KEY.store(ch,Ordering::Relaxed);KEY_COUNT.fetch_add(1,Ordering::Relaxed);enqueue_key(ch);}}},
+            44=>{if MOUSE_AVAILABLE.load(Ordering::Acquire) != 0 { handle_mouse_byte(inb(0x60)); }},
             _=>{}
         }
         if vector>=40 {outb(0xA0,0x20);}

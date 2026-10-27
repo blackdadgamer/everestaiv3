@@ -34,13 +34,23 @@ jobs:
         run: cargo test --locked -p everest-kernel
 
       - name: Install QEMU/OVMF test tools
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: |
+          set -euxo pipefail
           packages="qemu-system-x86 ovmf dosfstools mtools socat"
-          if ! sudo apt-get install -y --no-install-recommends $packages; then
-            sudo apt-get update -o Acquire::Retries=1 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10
-            sudo apt-get install -y $packages
-          fi
+          # Refresh package indexes with bounded network retries before installing.
+          sudo apt-get update \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=60 \
+            -o Acquire::https::Timeout=60 \
+            -o Acquire::http::Pipeline-Depth=0
+          # Keep installation from hanging indefinitely on a stalled mirror.
+          timeout --foreground 25m sudo apt-get install -y --no-install-recommends \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=60 \
+            -o Acquire::https::Timeout=60 \
+            $packages
+          qemu-system-x86_64 --version
 
       - name: Build and boot in QEMU/OVMF
         run: sh scripts/test-qemu.sh
