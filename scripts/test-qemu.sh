@@ -170,6 +170,19 @@ run_qemu() {
 
 run_qemu 1
 
+# Verify the terminal wrote the exact submitted text to the persistent FAT32 image.
+if ! mtype -i "$DATA_IMAGE" ::USER.TXT > "$TMP_DIR/USER.TXT"; then
+    printf 'USER.TXT was not written by the terminal.\\n' >&2
+    exit 1
+fi
+printf 'Hello World' > "$TMP_DIR/expected-user.txt"
+if ! cmp -s "$TMP_DIR/expected-user.txt" "$TMP_DIR/USER.TXT"; then
+    printf 'USER.TXT contents did not match the submitted terminal line.\\n' >&2
+    printf 'Actual USER.TXT:\\n' >&2
+    cat "$TMP_DIR/USER.TXT" >&2
+    exit 1
+fi
+
 # Inspect the actual on-disk bytes after the first VM has exited.
 if ! mtype -i "$DATA_IMAGE" ::CONFIG.TXT > "$TMP_DIR/CONFIG.TXT"; then
     printf 'CONFIG.TXT was not written to the FAT32 disk.\n' >&2
