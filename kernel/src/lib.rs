@@ -120,7 +120,6 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     }
 }
 
-const UI_BG: (u8, u8, u8) = (5, 8, 24);
 const INPUT_BG: (u8, u8, u8) = (18, 26, 48);
 const UI_WHITE: (u8, u8, u8) = (255, 255, 255);
 const UI_ACCENT: (u8, u8, u8) = (110, 190, 255);
@@ -141,7 +140,6 @@ fn draw_welcome_screen(info: &BootInfo) {
     draw_text(info, 80, 164, 2, b"Username", (160, 190, 230));
     draw_border(info, 80, 188, 480, 56, 3, UI_ACCENT);
     fill_rect(info, 83, 191, 474, 50, INPUT_BG);
-    draw_text(info, 96, 205, 3, b"", UI_WHITE);
 }
 
 fn update_username_input(info: &BootInfo) {
