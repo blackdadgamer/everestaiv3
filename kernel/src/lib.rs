@@ -103,7 +103,8 @@ pub fn kernel_main(info: &BootInfo) -> ! {
         false
     };
     if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
-    draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);\n    draw_welcome_screen(info);
+    draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
+    draw_welcome_screen(info);
     if virtual_memory_ready {
         unsafe { interrupts::initialize(); }
         unsafe { core::arch::asm!("sti", options(nomem, nostack)); }
