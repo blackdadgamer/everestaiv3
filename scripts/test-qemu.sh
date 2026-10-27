@@ -120,27 +120,27 @@ run_qemu() {
         sleep 2
         sleep 0.5
         {
-            printf '{"execute":"qmp_capabilities"}\\r\\n'
+            printf '{"execute":"qmp_capabilities"}\r\n'
             sleep 0.4
             # The first PS/2 packet after stream enable can be a sync packet;
             # prime the packet decoder with a harmless one-pixel motion.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
             sleep 0.4
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-120}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-120}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-60}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-60}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
             sleep 0.4
             { printf 'mouse_button 1\\n'; sleep 0.4; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
             # Prime one packet after the button transition, then drag.
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
             sleep 0.3
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":39}},{"type":"rel","data":{"axis":"y","value":9}}]}}\\r\\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":39}},{"type":"rel","data":{"axis":"y","value":9}}]}}\r\n'
             sleep 0.4
             { printf 'mouse_button 0\\n'; sleep 0.4; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
             sleep 0.5
