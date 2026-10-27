@@ -113,7 +113,7 @@ run_qemu() {
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --username admin; then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --username admin --timezone NPT; then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         printf 'Saved QEMU failure screenshot and log under dist/ for CI artifact inspection.\n' >&2
