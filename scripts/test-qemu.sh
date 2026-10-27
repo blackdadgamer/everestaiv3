@@ -38,6 +38,8 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 USB_IMAGE="$TMP_DIR/everest-usb.img"
+DISK_IMAGE="$TMP_DIR/everest-fat32.img"
+FILE_SOURCE="$TMP_DIR/HELLO.TXT"
 MONITOR="$TMP_DIR/qemu-monitor.sock"
 SCREEN="$TMP_DIR/everest-screen.ppm"
 VARS_COPY="$TMP_DIR/OVMF_VARS.fd"
@@ -49,14 +51,20 @@ mmd -i "$USB_IMAGE" ::/EFI
 mmd -i "$USB_IMAGE" ::/EFI/BOOT
 mcopy -i "$USB_IMAGE" dist/EFI/BOOT/BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
 
+# Build a separate, disposable FAT32 data disk with a deterministic test file.
+truncate -s 64M "$DISK_IMAGE"
+mkfs.vfat -F 32 "$DISK_IMAGE" >/dev/null
+printf "EVEREST DISK OK\\n" > "$FILE_SOURCE"
+mcopy -i "$DISK_IMAGE" "$FILE_SOURCE" ::HELLO.TXT
+
 qemu-system-x86_64 \
-    -machine q35 \
+    -machine pc \
     -m 512M \
     -drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE" \
     -drive "if=pflash,format=raw,file=$VARS_COPY" \
     -device qemu-xhci,id=xhci \
     -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
-    -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \
+    -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \\\n    -drive "if=ide,index=0,format=raw,file=$DISK_IMAGE" \\
     -display none \
     -monitor "unix:$MONITOR,server,nowait" \
     -serial none \
