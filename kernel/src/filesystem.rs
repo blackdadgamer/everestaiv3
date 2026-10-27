@@ -14,6 +14,7 @@ const ATA_DRIVE: u16 = 0x1f6;
 const ATA_STATUS: u16 = 0x1f7;
 const ATA_COMMAND: u16 = 0x1f7;
 const CMD_READ_SECTORS: u8 = 0x20;
+const CMD_WRITE_SECTORS: u8 = 0x30;
 const STATUS_BSY: u8 = 0x80;
 const STATUS_DRQ: u8 = 0x08;
 const STATUS_ERR: u8 = 0x01;
@@ -30,6 +31,29 @@ pub enum FsError {
     FileNotFound,
     FileTooLarge,
     CorruptChain,
+}
+
+/// Write one 512-byte LBA sector to the primary IDE master using ATA PIO.
+pub fn write_sector(lba: u32, input: &[u8; SECTOR_SIZE]) -> Result<(), FsError> {
+    unsafe {
+        if !wait_not_busy()? { return Err(FsError::DeviceTimeout); }
+        outb(ATA_DRIVE, 0xe0 | ((lba >> 24) as u8 & 0x0f));
+        let _ = inb(0x3f6); let _ = inb(0x3f6); let _ = inb(0x3f6); let _ = inb(0x3f6);
+        outb(ATA_SECTOR_COUNT, 1);
+        outb(ATA_LBA0, lba as u8);
+        outb(ATA_LBA1, (lba >> 8) as u8);
+        outb(ATA_LBA2, (lba >> 16) as u8);
+        outb(ATA_COMMAND, CMD_WRITE_SECTORS);
+        if !wait_data_ready()? { return Err(FsError::DeviceTimeout); }
+        for word in 0..(SECTOR_SIZE / 2) {
+            let value = u16::from_le_bytes([input[word * 2], input[word * 2 + 1]]);
+            outw(ATA_DATA, value);
+        }
+        if !wait_not_busy()? { return Err(FsError::DeviceTimeout); }
+        let status = inb(ATA_STATUS);
+        if status & STATUS_ERR != 0 { return Err(FsError::DeviceError); }
+    }
+    Ok(())
 }
 
 /// Read one 512-byte LBA sector from the primary IDE master using ATA PIO.
@@ -74,6 +98,9 @@ unsafe fn wait_data_ready() -> Result<bool, FsError> {
 }
 unsafe fn outb(port: u16, value: u8) {
     unsafe { asm!("out dx, al", in("dx") port, in("al") value, options(nomem, nostack, preserves_flags)); }
+}
+unsafe fn outw(port: u16, value: u16) {
+    unsafe { asm!("out dx, ax", in("dx") port, in("ax") value, options(nomem, nostack, preserves_flags)); }
 }
 unsafe fn inb(port: u16) -> u8 {
     let value: u8;
@@ -198,6 +225,97 @@ impl Fat32Volume {
         }
         Err(FsError::CorruptChain)
     }
+    /// Create or replace a small root-directory 8.3 file using one cluster.
+    /// The contents must fit within one cluster; this keeps boot-time writes bounded.
+    pub fn write_root_file(&self, wanted: &[u8; 11], contents: &[u8]) -> Result<(), FsError> {
+        let cluster_bytes = self.sectors_per_cluster as usize * SECTOR_SIZE;
+        if contents.len() > cluster_bytes { return Err(FsError::FileTooLarge); }
+        let mut directory_cluster = self.root_cluster;
+        let max_clusters = self.total_sectors / self.sectors_per_cluster as u32 + 1;
+        let mut free_slot: Option<(u32, usize)> = None;
+        let mut existing: Option<(u32, u32, u32, usize)> = None;
+        for _ in 0..max_clusters {
+            let first = self.cluster_sector(directory_cluster)?;
+            for si in 0..self.sectors_per_cluster as u32 {
+                let lba = first + si;
+                let mut sector = [0u8; 512];
+                read_sector(lba, &mut sector)?;
+                for (idx, entry) in sector.chunks_exact(32).enumerate() {
+                    let first_byte = entry[0];
+                    if first_byte == 0 || first_byte == 0xe5 {
+                        if free_slot.is_none() { free_slot = Some((lba, idx)); }
+                        if first_byte == 0 { break; }
+                    } else if entry[11] != 0x0f && entry[11] & 0x08 == 0 && &entry[..11] == wanted {
+                        let cluster = ((le16(entry, 20) as u32) << 16) | le16(entry, 26) as u32;
+                        existing = Some((lba, idx, cluster, le32(entry, 28)));
+                        break;
+                    }
+                }
+                if existing.is_some() { break; }
+            }
+            if existing.is_some() { break; }
+            match self.next_cluster(directory_cluster)? {
+                Some(next) => directory_cluster = next,
+                None => break,
+            }
+        }
+        let (entry_lba, entry_index, old_cluster, _old_size, is_existing) = if let Some((lba, idx, cluster, size)) = existing {
+            (lba, idx, cluster, size, true)
+        } else if let Some((lba, idx)) = free_slot {
+            let cluster = self.allocate_cluster()?;
+            (lba, idx, cluster, 0, false)
+        } else {
+            return Err(FsError::FileTooLarge);
+        };
+        let data_cluster = if is_existing && old_cluster >= 2 { old_cluster } else { old_cluster };
+        // The configuration record is deliberately small and occupies one cluster.
+        for sector_index in 0..self.sectors_per_cluster as u32 {
+            let mut sector = [0u8; 512];
+            let start = sector_index as usize * SECTOR_SIZE;
+            if start < contents.len() {
+                let amount = (contents.len() - start).min(SECTOR_SIZE);
+                sector[..amount].copy_from_slice(&contents[start..start + amount]);
+            }
+            let lba = self.cluster_sector(data_cluster)? + sector_index;
+            write_sector(lba, &sector)?;
+        }
+        let mut directory_sector = [0u8; 512];
+        read_sector(entry_lba, &mut directory_sector)?;
+        let start = entry_index * 32;
+        let entry = &mut directory_sector[start..start + 32];
+        if !is_existing {
+            entry.fill(0);
+            entry[..11].copy_from_slice(wanted);
+            entry[11] = 0x20;
+            entry[20..22].copy_from_slice(&((data_cluster >> 16) as u16).to_le_bytes());
+            entry[26..28].copy_from_slice(&(data_cluster as u16).to_le_bytes());
+        }
+        entry[28..32].copy_from_slice(&(contents.len() as u32).to_le_bytes());
+        write_sector(entry_lba, &directory_sector)
+    }
+
+    fn allocate_cluster(&self) -> Result<u32, FsError> {
+        let fat_start = self.partition_lba + self.reserved_sectors as u32;
+        let entries = self.sectors_per_fat.saturating_mul(128);
+        for cluster in 2..entries {
+            let lba = fat_start + cluster * 4 / SECTOR_SIZE as u32;
+            let offset = (cluster * 4 % SECTOR_SIZE as u32) as usize;
+            let mut sector = [0u8; 512];
+            read_sector(lba, &mut sector)?;
+            if le32(&sector, offset) & 0x0fff_ffff != 0 { continue; }
+            // Mark the cluster as end-of-chain in every FAT copy.
+            for fat_index in 0..self.fat_count as u32 {
+                let fat_lba = fat_start + fat_index * self.sectors_per_fat + cluster * 4 / 512;
+                let mut fat_sector = [0u8; 512];
+                read_sector(fat_lba, &mut fat_sector)?;
+                fat_sector[offset..offset + 4].copy_from_slice(&0x0fff_ffffu32.to_le_bytes());
+                write_sector(fat_lba, &fat_sector)?;
+            }
+            return Ok(cluster);
+        }
+        Err(FsError::FileTooLarge)
+    }
+
     /// Copy a file's contents into caller-provided storage, bounded by both file size and output.
     pub fn read_file(&self, first_cluster: u32, file_size: u32, output: &mut [u8]) -> Result<usize, FsError> {
         let length = file_size as usize;
