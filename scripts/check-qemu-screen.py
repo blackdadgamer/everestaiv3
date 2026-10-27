@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    if len(sys.argv) < 2 or len(sys.argv) > 10:
+    if len(sys.argv) < 2 or len(sys.argv) > 12:
         print("usage: check-qemu-screen.py SCREEN.ppm [--file-manager] [--selected-index N] [--username NAME] [--timezone ZONE]", file=sys.stderr)
         return 2
 
@@ -57,7 +57,8 @@ def main() -> int:
         if marker_count < 10:
             print(f"Kernel health marker missing ({marker_count} pixels).", file=sys.stderr)
             return 1
-        wx, wy = width // 8, height // 8
+        drag_test = "--mouse-drag" in sys.argv
+        wx, wy = width // 8 + (100 if drag_test else 0), height // 8 + (80 if drag_test else 0)
         row_y = wy + 112 + selected * 38
         if not matches_color(wx + 28, row_y + 4, (187, 154, 247)):
             print(f"Violet highlight not found on selected row {selected}.", file=sys.stderr)
@@ -65,6 +66,16 @@ def main() -> int:
         if not matches_color(wx + 8, wy + 100, (26, 27, 38)):
             print("File Manager interior/background mismatch.", file=sys.stderr)
             return 1
+        if drag_test:
+            if not matches_color(wx + 1, wy + 1, (187, 154, 247)):
+                print("Window border was not found at the dragged position.", file=sys.stderr)
+                return 1
+            cursor_colors = (bytes((245, 245, 255)), bytes((255, 245, 245)))
+            cursor_pixels = sum(1 for off in range(0, len(pixels), 3)
+                               if pixels[off:off + 3] in cursor_colors)
+            if cursor_pixels < 8:
+                print(f"Mouse cursor not visible ({cursor_pixels} bright pixels).", file=sys.stderr)
+                return 1
         # Status strip uses the same title-bar fill; verify the C:/ path's
         # expected position is inside that strip rather than outside the window.
         status_y = wy + (height * 3 // 4) - 44

@@ -113,16 +113,27 @@ run_qemu() {
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
     else
-        # Saved config bypasses setup. Move down once to test live selection.
+        # Saved config: test keyboard selection and drag the title bar with PS/2 events.
         sleep 2
-        { printf 'sendkey down\n'; sleep 0.5; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+        {
+            printf 'sendkey down\\n'
+            sleep 0.4
+            printf 'mouse_move -120 -250\\n'
+            sleep 0.4
+            printf 'mouse_button 1\\n'
+            sleep 0.3
+            printf 'mouse_move 100 80\\n'
+            sleep 0.4
+            printf 'mouse_button 0\\n'
+            sleep 0.5
+        } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     fi
 
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --file-manager --selected-index "$([ "$boot_number" = "1" ] && printf 0 || printf 1)" --username admin --timezone NPT; then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --file-manager --selected-index "$([ "$boot_number" = "1" ] && printf 0 || printf 1)" --username admin --timezone NPT $([ "$boot_number" = "2" ] && printf -- "--mouse-drag"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         printf 'Saved QEMU failure screenshot and log under dist/ for CI artifact inspection.\n' >&2
@@ -148,4 +159,4 @@ fi
 
 # Reboot with the exact same writable data-disk image and no onboarding input.
 run_qemu 2
-printf 'Persistent configuration and File Manager UI passed: saved config survived reboot and Down moved selection.\n'
+printf 'Persistent configuration, keyboard navigation, mouse cursor and titlebar drag passed.\n'

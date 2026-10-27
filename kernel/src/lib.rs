@@ -135,6 +135,8 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
     load_demo_file();
     load_configuration();
+    CURSOR_X.store(info.width / 2, Ordering::Relaxed);
+    CURSOR_Y.store(info.height / 2, Ordering::Relaxed);
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
     draw_onboarding_screen(info);
     if virtual_memory_ready {
@@ -231,13 +233,27 @@ const FILE_SELECTION: (u8, u8, u8) = (187, 154, 247); // #bb9af7
 const FILE_TEXT: (u8, u8, u8) = (192, 202, 245);
 const FILE_SELECTED_TEXT: (u8, u8, u8) = (26, 27, 38);
 static FILE_SELECTION_INDEX: AtomicUsize = AtomicUsize::new(0);
+static WINDOW_X: AtomicUsize = AtomicUsize::new(usize::MAX);
+static WINDOW_Y: AtomicUsize = AtomicUsize::new(usize::MAX);
+static CURSOR_X: AtomicUsize = AtomicUsize::new(0);
+static CURSOR_Y: AtomicUsize = AtomicUsize::new(0);
+static MOUSE_BUTTONS: AtomicU8 = AtomicU8::new(0);
+static DRAGGING_WINDOW: AtomicU8 = AtomicU8::new(0);
+static DRAG_OFFSET_X: AtomicUsize = AtomicUsize::new(0);
+static DRAG_OFFSET_Y: AtomicUsize = AtomicUsize::new(0);
 
 fn draw_desktop(info: &BootInfo) {
     fill_rect(info, 0, 0, info.width, info.height, DESKTOP_BG);
     let window_width = info.width.saturating_mul(3) / 4;
     let window_height = info.height.saturating_mul(3) / 4;
-    let window_x = info.width.saturating_sub(window_width) / 2;
-    let window_y = info.height.saturating_sub(window_height) / 2;
+    let centered_x = info.width.saturating_sub(window_width) / 2;
+    let centered_y = info.height.saturating_sub(window_height) / 2;
+    let stored_x = WINDOW_X.load(Ordering::Relaxed);
+    let stored_y = WINDOW_Y.load(Ordering::Relaxed);
+    let window_x = if stored_x == usize::MAX { centered_x } else { stored_x.min(info.width.saturating_sub(window_width)) };
+    let window_y = if stored_y == usize::MAX { centered_y } else { stored_y.min(info.height.saturating_sub(window_height + 36)) };
+    WINDOW_X.store(window_x, Ordering::Relaxed);
+    WINDOW_Y.store(window_y, Ordering::Relaxed);
     let titlebar_height = 46usize.min(window_height);
     draw_border(info, window_x, window_y, window_width, window_height, 2, FILE_SELECTION);
     fill_rect(info, window_x + 2, window_y + 2, window_width.saturating_sub(4), window_height.saturating_sub(4), WINDOW_BG);
@@ -309,6 +325,69 @@ fn draw_desktop(info: &BootInfo) {
     draw_text(info, 18, taskbar_y + 12, 1, b"EVEREST", FILE_TEXT);
     draw_text(info, info.width.saturating_sub(58), taskbar_y + 12, 1, b"12:00", FILE_TEXT);
     if info.width >= 180 { fill_rect(info, info.width - 160, taskbar_y + 16, 4, 4, (110, 190, 255)); }
+    draw_mouse_cursor(info, CURSOR_X.load(Ordering::Relaxed), CURSOR_Y.load(Ordering::Relaxed));
+}
+
+fn draw_mouse_cursor(info: &BootInfo, x: usize, y: usize) {
+    const ARROW: [u16; 16] = [
+        0b100000000000, 0b110000000000, 0b111000000000, 0b111100000000,
+        0b111110000000, 0b111111000000, 0b111111100000, 0b111111110000,
+        0b111111111000, 0b111111111100, 0b111111000000, 0b110111100000,
+        0b100011110000, 0b000001110000, 0b000001110000, 0b000000100000,
+    ];
+    for (row, bits) in ARROW.iter().enumerate() {
+        for col in 0..12 {
+            if bits & (1 << (11 - col)) != 0 {
+                put_pixel(info, x.saturating_add(col), y.saturating_add(row), (10, 10, 14));
+                if col > 0 && row > 0 && ARROW[row - 1] & (1 << (12 - col)) != 0 {
+                    put_pixel(info, x.saturating_add(col), y.saturating_add(row), (245, 245, 255));
+                }
+            }
+        }
+    }
+}
+
+fn process_mouse_events(info: &BootInfo) -> bool {
+    if ONBOARDING_STEP.load(Ordering::Relaxed) < 3 { return false; }
+    let mut changed = false;
+    while let Some(event) = interrupts::pop_mouse_event() {
+        let x = CURSOR_X.load(Ordering::Relaxed).saturating_add_signed(event.dx as isize).min(info.width.saturating_sub(1));
+        let y = CURSOR_Y.load(Ordering::Relaxed).saturating_add_signed(event.dy as isize).min(info.height.saturating_sub(1));
+        CURSOR_X.store(x, Ordering::Relaxed);
+        CURSOR_Y.store(y, Ordering::Relaxed);
+        let previous = MOUSE_BUTTONS.swap(event.buttons, Ordering::Relaxed);
+        let left_now = event.buttons & 1 != 0;
+        let left_before = previous & 1 != 0;
+        let window_width = info.width.saturating_mul(3) / 4;
+        let window_height = info.height.saturating_mul(3) / 4;
+        let wx = WINDOW_X.load(Ordering::Relaxed).min(info.width.saturating_sub(window_width));
+        let wy = WINDOW_Y.load(Ordering::Relaxed).min(info.height.saturating_sub(window_height + 36));
+        if left_now && !left_before {
+            if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
+                DRAG_OFFSET_X.store(x.saturating_sub(wx), Ordering::Relaxed);
+                DRAG_OFFSET_Y.store(y.saturating_sub(wy), Ordering::Relaxed);
+                DRAGGING_WINDOW.store(1, Ordering::Relaxed);
+            } else if x >= wx + 20 && x < wx + window_width.saturating_sub(20)
+                && y >= wy + 108 && y < wy + 108 + 6 * 38 {
+                let row = y.saturating_sub(wy + 108) / 38;
+                let count = filesystem::open_volume().ok().map(|volume| {
+                    let mut names = [[0u8; 11]; 32]; let mut count = 0usize;
+                    let _ = volume.list_root_files(&mut names, &mut count); count
+                }).unwrap_or(0);
+                FILE_SELECTION_INDEX.store(row.min(count.saturating_sub(1)), Ordering::Relaxed);
+            }
+        }
+        if left_now && DRAGGING_WINDOW.load(Ordering::Relaxed) != 0 {
+            let nx = x.saturating_sub(DRAG_OFFSET_X.load(Ordering::Relaxed)).min(info.width.saturating_sub(window_width));
+            let ny = y.saturating_sub(DRAG_OFFSET_Y.load(Ordering::Relaxed)).min(info.height.saturating_sub(window_height + 36));
+            WINDOW_X.store(nx, Ordering::Relaxed);
+            WINDOW_Y.store(ny, Ordering::Relaxed);
+        }
+        if !left_now { DRAGGING_WINDOW.store(0, Ordering::Relaxed); }
+        changed = true;
+    }
+    if changed { draw_desktop(info); }
+    changed
 }
 
 fn load_configuration() {
@@ -441,6 +520,7 @@ fn update_onboarding(info: &BootInfo) {
         }
     }
 
+    if process_mouse_events(info) { return; }
     if redraw {
         draw_onboarding_screen(info);
     }
