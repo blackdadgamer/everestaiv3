@@ -129,7 +129,7 @@ pub unsafe extern "C" fn everest_irq_dispatch(vector:u64){
     unsafe {
         match vector {
             32=>{TICKS.fetch_add(1,Ordering::Relaxed);},
-            33=>{let code=inb(0x60); if code & 0x80==0 {let ch=translate(code);if ch!=0{LAST_KEY.store(ch,Ordering::Relaxed);KEY_COUNT.fetch_add(1,Ordering::Relaxed);}}},
+            33=>{let code=inb(0x60); if code & 0x80==0 {let ch=translate(code);if ch!=0{LAST_KEY.store(ch,Ordering::Relaxed);KEY_COUNT.fetch_add(1,Ordering::Relaxed);enqueue_key(ch);}}},
             _=>{}
         }
         if vector>=40 {outb(0xA0,0x20);}
