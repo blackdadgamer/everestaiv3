@@ -66,6 +66,10 @@ const DISK_TEXT_CAPACITY: usize = 96;
 static DISK_TEXT: [AtomicU8; DISK_TEXT_CAPACITY] = [const { AtomicU8::new(0) }; DISK_TEXT_CAPACITY];
 static DISK_TEXT_LEN: AtomicUsize = AtomicUsize::new(0);
 static DISK_TEXT_OK: AtomicU8 = AtomicU8::new(0);
+const TERMINAL_CAPACITY: usize = 96;
+static TERMINAL_INPUT: [AtomicU8; TERMINAL_CAPACITY] = [const { AtomicU8::new(0) }; TERMINAL_CAPACITY];
+static TERMINAL_LEN: AtomicUsize = AtomicUsize::new(0);
+static TERMINAL_SAVED: AtomicU8 = AtomicU8::new(0);
 
 /// Read HELLO.TXT from the FAT32 root directory, keeping the UI path bounded.
 fn load_demo_file() {
@@ -305,6 +309,19 @@ fn draw_desktop(info: &BootInfo) {
             if names[index][8..11].iter().any(|b| *b != b' ') { b"FILE" } else { b"ITEM" }, color);
     }
 
+    // A compact terminal pane shares the desktop window with the root listing.
+    let terminal_y = window_y + window_height.saturating_sub(112);
+    fill_rect(info, window_x + 20, terminal_y, window_width.saturating_sub(40), 58, (16, 18, 27));
+    draw_text(info, window_x + 28, terminal_y + 6, 1, b"TERMINAL  C:/USER.TXT", (122, 162, 247));
+    draw_text(info, window_x + 28, terminal_y + 24, 2, b">", FILE_SELECTION);
+    let terminal_len = TERMINAL_LEN.load(Ordering::Relaxed).min(TERMINAL_CAPACITY);
+    let mut terminal_line = [0u8; TERMINAL_CAPACITY];
+    for (i, byte) in terminal_line.iter_mut().enumerate().take(terminal_len) { *byte = TERMINAL_INPUT[i].load(Ordering::Relaxed); }
+    draw_text(info, window_x + 46, terminal_y + 24, 2, &terminal_line[..terminal_len], UI_WHITE);
+    if TERMINAL_SAVED.load(Ordering::Relaxed) != 0 {
+        draw_text(info, window_x + 260, terminal_y + 24, 1, b"File Saved Successfully", (118, 222, 190));
+    }
+
     let status_y = window_y + window_height.saturating_sub(44);
     fill_rect(info, window_x + 3, status_y, window_width.saturating_sub(6), 39, TITLEBAR_BG);
     draw_border(info, window_x + 3, status_y, window_width.saturating_sub(6), 1, 1, FILE_SELECTION);
@@ -503,7 +520,22 @@ fn update_onboarding(info: &BootInfo) {
                         let mut names = [[0u8; 11]; 32]; let mut count = 0usize;
                         let _ = volume.list_root_files(&mut names, &mut count); count
                     }).unwrap_or(0);
-                    if key == 0x81 {
+                    if key == b'\\n' {
+                        let length = TERMINAL_LEN.load(Ordering::Relaxed).min(TERMINAL_CAPACITY);
+                        let mut line = [0u8; TERMINAL_CAPACITY];
+                        for (i, byte) in line.iter_mut().enumerate().take(length) { *byte = TERMINAL_INPUT[i].load(Ordering::Relaxed); }
+                        let saved = filesystem::open_volume().ok().is_some_and(|volume| volume.write_root_file(b\"USER    TXT\", &line[..length]).is_ok());
+                        TERMINAL_SAVED.store(saved as u8, Ordering::Relaxed);
+                        TERMINAL_LEN.store(0, Ordering::Relaxed);
+                        for slot in &TERMINAL_INPUT { slot.store(0, Ordering::Relaxed); }
+                        redraw = true;
+                    } else if key == 8 || key == 127 {
+                        let length = TERMINAL_LEN.load(Ordering::Relaxed).min(TERMINAL_CAPACITY);
+                        if length > 0 { TERMINAL_INPUT[length - 1].store(0, Ordering::Relaxed); TERMINAL_LEN.store(length - 1, Ordering::Relaxed); redraw = true; }
+                    } else if (32..=126).contains(&key) {
+                        let length = TERMINAL_LEN.load(Ordering::Relaxed).min(TERMINAL_CAPACITY);
+                        if length < TERMINAL_CAPACITY { TERMINAL_INPUT[length].store(key, Ordering::Relaxed); TERMINAL_LEN.store(length + 1, Ordering::Relaxed); TERMINAL_SAVED.store(0, Ordering::Relaxed); redraw = true; }
+                    } else if key == 0x81 {
                         let selected = FILE_SELECTION_INDEX.load(Ordering::Relaxed);
                         FILE_SELECTION_INDEX.store(selected.saturating_sub(1), Ordering::Relaxed);
                         redraw = true;
