@@ -143,6 +143,33 @@ impl Fat32Volume {
         else if next < 2 || next == 0x0fff_fff7 { Err(FsError::CorruptChain) }
         else { Ok(Some(next)) }
     }
+    /// List visible short-name files in the root directory into caller-owned bounded storage.
+    /// Names are the raw 11-byte FAT 8.3 form; long-file-name entries are skipped.
+    pub fn list_root_files(&self, output: &mut [[u8; 11]], count: &mut usize) -> Result<(), FsError> {
+        *count = 0;
+        let mut cluster = self.root_cluster;
+        let max_clusters = self.total_sectors / self.sectors_per_cluster as u32 + 1;
+        for _ in 0..max_clusters {
+            let first = self.cluster_sector(cluster)?;
+            for sector_index in 0..self.sectors_per_cluster as u32 {
+                let mut sector = [0u8; 512];
+                read_sector(first + sector_index, &mut sector)?;
+                for entry in sector.chunks_exact(32) {
+                    if entry[0] == 0 { return Ok(()); }
+                    if entry[0] == 0xe5 || entry[11] == 0x0f || entry[11] & 0x08 != 0 { continue; }
+                    if *count < output.len() {
+                        output[*count].copy_from_slice(&entry[..11]);
+                        *count += 1;
+                    }
+                }
+            }
+            match self.next_cluster(cluster)? {
+                Some(next) => cluster = next,
+                None => return Ok(()),
+            }
+        }
+        Err(FsError::CorruptChain)
+    }
     /// Scan root directory entries and return the cluster and size of an 8.3 filename.
     pub fn find_root_file(&self, wanted: &[u8; 11]) -> Result<(u32, u32), FsError> {
         let mut cluster = self.root_cluster;
