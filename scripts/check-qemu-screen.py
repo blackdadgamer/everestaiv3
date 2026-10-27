@@ -45,22 +45,54 @@ def main() -> int:
         )
         return 1
 
-    # Runtime markers are painted only after PIT and translated keyboard IRQs.
-    timer_marker = bytes((255, 80, 200))
-    key_marker = bytes((255, 210, 40))
-    timer_count = sum(color == timer_marker for color in colors)
-    key_count = sum(color == key_marker for color in colors)
-    if timer_count < 10 or key_count < 10:
-        print(
-            f"Missing runtime IRQ markers (timer={timer_count}, keyboard={key_count}; "
-            f"expected at least 10 pixels each).",
-            file=sys.stderr,
-        )
-        return 1
+    # Verify the exact 5x7 bitmap pattern at the known runtime text origin.
+    # The kernel paints the message after the first interrupt-driven halt.
+    glyphs = {
+        "H": [17, 17, 17, 31, 17, 17, 17],
+        "e": [0, 0, 14, 17, 31, 16, 14],
+        "l": [12, 4, 4, 4, 4, 4, 14],
+        "o": [0, 0, 14, 17, 17, 17, 14],
+        " ": [0, 0, 0, 0, 0, 0, 0],
+        "E": [31, 16, 16, 30, 16, 16, 31],
+        "v": [0, 0, 17, 17, 17, 10, 4],
+        "r": [0, 0, 22, 25, 16, 16, 16],
+        "s": [0, 0, 15, 16, 14, 1, 30],
+        "t": [8, 8, 28, 8, 8, 9, 6],
+        "O": [14, 17, 17, 17, 17, 17, 14],
+        "S": [15, 16, 16, 14, 1, 1, 30],
+    }
+    message = "Hello Everest OS"
+    origin_x, origin_y, scale = 16, 24, 3
+    foreground = bytes((255, 255, 255))
+    backgrounds = (bytes((5, 8, 24)), bytes((24, 8, 5)))
+
+    def pixel_at(x: int, y: int) -> bytes:
+        offset = (y * width + x) * 3
+        return pixels[offset:offset + 3]
+
+    for char_index, character in enumerate(message):
+        rows = glyphs[character]
+        for row, bits in enumerate(rows):
+            for col in range(6):
+                lit = col < 5 and bool(bits & (1 << (4 - col)))
+                expected_color = foreground if lit else None
+                for dy in range(scale):
+                    for dx in range(scale):
+                        actual = pixel_at(
+                            origin_x + char_index * 6 * scale + col * scale + dx,
+                            origin_y + row * scale + dy,
+                        )
+                        if (actual != expected_color if expected_color else actual not in backgrounds):
+                            print(
+                                f"Bitmap text mismatch for {message!r} at character "
+                                f"{character!r}, row {row}, column {col}.",
+                                file=sys.stderr,
+                            )
+                            return 1
 
     print(
-        f"QEMU UEFI boot passed: page-table/IDT={count}, PIT={timer_count}, "
-        f"PS/2 keyboard={key_count} marker pixels in {width}x{height}."
+        f"QEMU UEFI boot passed: page-table/IDT={count}; verified bitmap text "
+        f"{message!r} at ({origin_x},{origin_y}) with scale {scale} in {width}x{height}."
     )
     return 0
 
