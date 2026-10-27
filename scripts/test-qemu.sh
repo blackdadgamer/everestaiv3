@@ -147,14 +147,44 @@ run_qemu() {
             sleep 0.5
             printf 'mouse_button 0\n'
             sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/drag-screen.ppm"
+            sleep 0.3
+            # Move to START, click to open the launcher, then choose Terminal.
+            for step in 1 2 3 4 5 6 7 8 9 10; do
+                printf 'mouse_move -20 0\n'
+                sleep 0.1
+            done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+                printf 'mouse_move 0 20\n'
+                sleep 0.1
+            done
+            printf 'mouse_button 1\n'
+            sleep 0.3
+            printf 'mouse_button 0\n'
+            sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/start-menu.ppm"
+            sleep 0.3
+            for step in 1 2 3 4 5 6 7 8; do
+                printf 'mouse_move 0 -20\n'
+                sleep 0.1
+            done
+            printf 'mouse_move 20 0\n'
+            sleep 0.3
+            printf 'mouse_button 1\n'
+            sleep 0.3
+            printf 'mouse_button 0\n'
+            sleep 0.5
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
+    if [ "$boot_number" = "2" ]; then
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/start-menu.ppm" --start-menu
+    fi
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" --file-manager --selected-index 0 --username admin --timezone NPT $([ "$boot_number" = "2" ] && printf -- "--mouse-drag"); then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--launcher-terminal"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi

@@ -30,6 +30,18 @@ def main() -> int:
     if not is_color(pixel(5, 5), (26, 27, 38)):
         print("Tokyo Night desktop background mismatch.", file=sys.stderr)
         return 1
+    if "--start-menu" in sys.argv:
+        if not is_color(pixel(12, height - 36 - 164), (187, 154, 247)):
+            print("Start menu popup was not visible above the taskbar.", file=sys.stderr)
+            return 1
+        print("Start menu popup verified.")
+        return 0
+    if "--launcher-terminal" in sys.argv:
+        if not is_color(pixel(192, 150), (80, 200, 160)):
+            print("Launcher did not spawn a visible Terminal window.", file=sys.stderr)
+            return 1
+        print("Start launcher spawned a visible Terminal window.")
+        return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.
     border = (187, 154, 247)

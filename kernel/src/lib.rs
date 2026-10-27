@@ -245,6 +245,81 @@ static MOUSE_BUTTONS: AtomicU8 = AtomicU8::new(0);
 static DRAGGING_WINDOW: AtomicU8 = AtomicU8::new(0);
 static DRAG_OFFSET_X: AtomicUsize = AtomicUsize::new(0);
 static DRAG_OFFSET_Y: AtomicUsize = AtomicUsize::new(0);
+static START_MENU_OPEN: AtomicU8 = AtomicU8::new(0);
+static APP_WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
+static APP_WINDOW_KIND: [AtomicU8; 8] = [const { AtomicU8::new(0) }; 8];
+static APP_WINDOW_X: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+static APP_WINDOW_Y: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+static APP_WINDOW_Z: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+static APP_Z_CLOCK: AtomicUsize = AtomicUsize::new(1);
+
+fn spawn_app_window(info: &BootInfo, kind: u8) {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    let slot = if count < 8 { count } else {
+        let mut oldest = 0usize;
+        for i in 1..8 { if APP_WINDOW_Z[i].load(Ordering::Relaxed) < APP_WINDOW_Z[oldest].load(Ordering::Relaxed) { oldest = i; } }
+        oldest
+    };
+    APP_WINDOW_KIND[slot].store(kind, Ordering::Relaxed);
+    APP_WINDOW_X[slot].store(180 + (slot * 44), Ordering::Relaxed);
+    APP_WINDOW_Y[slot].store(100 + (slot * 36), Ordering::Relaxed);
+    APP_WINDOW_Z[slot].store(APP_Z_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+    if count < 8 { APP_WINDOW_COUNT.store(count + 1, Ordering::Relaxed); }
+    START_MENU_OPEN.store(0, Ordering::Relaxed);
+    draw_desktop(info);
+}
+
+fn draw_app_windows(info: &BootInfo) {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    let mut drawn = [false; 8];
+    for _ in 0..count {
+        let mut next = None;
+        let mut z = usize::MAX;
+        for i in 0..count {
+            let zi = APP_WINDOW_Z[i].load(Ordering::Relaxed);
+            if !drawn[i] && zi < z { z = zi; next = Some(i); }
+        }
+        let Some(i) = next else { break; };
+        drawn[i] = true;
+        let kind = APP_WINDOW_KIND[i].load(Ordering::Relaxed);
+        let x = APP_WINDOW_X[i].load(Ordering::Relaxed);
+        let y = APP_WINDOW_Y[i].load(Ordering::Relaxed);
+        let w = 520usize.min(info.width.saturating_sub(x));
+        let h = 300usize.min(info.height.saturating_sub(y + 36));
+        if w < 180 || h < 100 { continue; }
+        draw_border(info, x, y, w, h, 2, FILE_SELECTION);
+        fill_rect(info, x + 2, y + 2, w - 4, h - 4, WINDOW_BG);
+        fill_rect(info, x + 2, y + 2, w - 4, 42, TITLEBAR_BG);
+        let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", _ => b"SETTINGS" };
+        draw_text(info, x + 18, y + 15, 2, title, UI_WHITE);
+        if kind == 1 {
+            // Stable framebuffer marker used by the headless launcher regression test.
+            fill_rect(info, x + 8, y + 48, 8, 8, (80, 200, 160));
+        }
+        if kind == 3 {
+            draw_text(info, x + 24, y + 90, 2, b"Everest OS v1.0", FILE_TEXT);
+            draw_text(info, x + 24, y + 140, 2, b"Created by Amit Pathak", FILE_TEXT);
+        } else if kind == 1 {
+            draw_text(info, x + 24, y + 80, 2, b"Everest Terminal", FILE_TEXT);
+            draw_text(info, x + 24, y + 124, 1, b"Ready for commands", UI_WHITE);
+        } else {
+            draw_text(info, x + 24, y + 80, 2, b"FILE MANAGER", FILE_TEXT);
+            draw_text(info, x + 24, y + 124, 1, b"Browse your files", UI_WHITE);
+        }
+    }
+}
+
+fn draw_start_menu(info: &BootInfo) {
+    if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { return; }
+    let y = info.height.saturating_sub(36);
+    fill_rect(info, 12, y.saturating_sub(164), 220, 160, TITLEBAR_BG);
+    draw_border(info, 12, y.saturating_sub(164), 220, 160, 2, FILE_SELECTION);
+    draw_text(info, 28, y.saturating_sub(146), 2, b"START MENU", UI_WHITE);
+    draw_text(info, 32, y.saturating_sub(112), 2, b"TERMINAL", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(78), 2, b"FILE MANAGER", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(44), 2, b"SETTINGS", FILE_TEXT);
+}
+
 
 fn draw_desktop(info: &BootInfo) {
     fill_rect(info, 0, 0, info.width, info.height, DESKTOP_BG);
@@ -339,9 +414,15 @@ fn draw_desktop(info: &BootInfo) {
     let taskbar_height = 36usize.min(info.height);
     let taskbar_y = info.height.saturating_sub(taskbar_height);
     fill_rect(info, 0, taskbar_y, info.width, taskbar_height, TASKBAR_BG);
-    draw_text(info, 18, taskbar_y + 12, 1, b"EVEREST", FILE_TEXT);
+    fill_rect(info, 8, taskbar_y + 4, 104, 28, TITLEBAR_BG);
+    draw_border(info, 8, taskbar_y + 4, 104, 28, 1, FILE_SELECTION);
+    draw_text(info, 22, taskbar_y + 12, 1, b"START", UI_WHITE);
     draw_text(info, info.width.saturating_sub(58), taskbar_y + 12, 1, b"12:00", FILE_TEXT);
     if info.width >= 180 { fill_rect(info, info.width - 160, taskbar_y + 16, 4, 4, (110, 190, 255)); }
+    // Render app windows above the desktop/taskbar, then the launcher popup above
+    // both. Keep the cursor last so it remains visible over interactive surfaces.
+    draw_app_windows(info);
+    draw_start_menu(info);
     draw_mouse_cursor(info, CURSOR_X.load(Ordering::Relaxed), CURSOR_Y.load(Ordering::Relaxed));
 }
 
@@ -380,7 +461,13 @@ fn process_mouse_events(info: &BootInfo) -> bool {
         let wx = WINDOW_X.load(Ordering::Relaxed).min(info.width.saturating_sub(window_width));
         let wy = WINDOW_Y.load(Ordering::Relaxed).min(info.height.saturating_sub(window_height + 36));
         if left_now && !left_before {
-            if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
+            let taskbar_y = info.height.saturating_sub(36);
+            if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
+                START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
+            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(160) && y < taskbar_y {
+                let row = y.saturating_sub(taskbar_y.saturating_sub(130)) / 34;
+                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), _ => spawn_app_window(info, 3) }
+            } else if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
                 DRAG_OFFSET_X.store(x.saturating_sub(wx), Ordering::Relaxed);
                 DRAG_OFFSET_Y.store(y.saturating_sub(wy), Ordering::Relaxed);
                 DRAGGING_WINDOW.store(1, Ordering::Relaxed);
@@ -392,6 +479,16 @@ fn process_mouse_events(info: &BootInfo) -> bool {
                     let _ = volume.list_root_files(&mut names, &mut count); count
                 }).unwrap_or(0);
                 FILE_SELECTION_INDEX.store(row.min(count.saturating_sub(1)), Ordering::Relaxed);
+            }
+        }
+        if left_now && !left_before {
+            let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+            for i in 0..count {
+                let ax = APP_WINDOW_X[i].load(Ordering::Relaxed);
+                let ay = APP_WINDOW_Y[i].load(Ordering::Relaxed);
+                if x >= ax && x < ax + 520 && y >= ay && y < ay + 44 {
+                    APP_WINDOW_Z[i].store(APP_Z_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+                }
             }
         }
         if left_now && DRAGGING_WINDOW.load(Ordering::Relaxed) != 0 {
