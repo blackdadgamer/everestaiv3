@@ -1,10 +1,37 @@
 //! Legacy 8259 PIC, PIT clock and PS/2 keyboard interrupt support.
-use core::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use core::arch::{asm, global_asm};
 
 static TICKS: AtomicU64 = AtomicU64::new(0);
 static LAST_KEY: AtomicU8 = AtomicU8::new(0);
 static KEY_COUNT: AtomicU64 = AtomicU64::new(0);
+
+// Single-producer (IRQ) / single-consumer (kernel loop) keyboard event ring.
+const KEY_QUEUE_CAPACITY: usize = 64;
+static KEY_QUEUE: [AtomicU8; KEY_QUEUE_CAPACITY] =
+    [const { AtomicU8::new(0) }; KEY_QUEUE_CAPACITY];
+static QUEUE_HEAD: AtomicUsize = AtomicUsize::new(0);
+static QUEUE_TAIL: AtomicUsize = AtomicUsize::new(0);
+
+fn enqueue_key(key: u8) {
+    let head = QUEUE_HEAD.load(Ordering::Relaxed);
+    let next = (head + 1) % KEY_QUEUE_CAPACITY;
+    if next == QUEUE_TAIL.load(Ordering::Acquire) {
+        return;
+    }
+    KEY_QUEUE[head].store(key, Ordering::Relaxed);
+    QUEUE_HEAD.store(next, Ordering::Release);
+}
+
+pub(crate) fn pop_key() -> Option<u8> {
+    let tail = QUEUE_TAIL.load(Ordering::Relaxed);
+    if tail == QUEUE_HEAD.load(Ordering::Acquire) {
+        return None;
+    }
+    let key = KEY_QUEUE[tail].load(Ordering::Relaxed);
+    QUEUE_TAIL.store((tail + 1) % KEY_QUEUE_CAPACITY, Ordering::Release);
+    Some(key)
+}
 
 
 global_asm!(
@@ -121,7 +148,7 @@ fn translate(scancode:u8)->u8{
         0x10..=0x1B=>ROW2[(scancode-0x10) as usize],
         0x1E..=0x29=>ROW3[(scancode-0x1E) as usize],
         0x2C..=0x35=>ROW4[(scancode-0x2C) as usize],
-        0x39=>b' ',0x1C=>b'\n',_=>0
+        0x0E=>8,0x39=>b' ',0x1C=>b'\n',_=>0
     }
 }
 #[unsafe(no_mangle)]
