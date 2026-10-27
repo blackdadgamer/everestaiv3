@@ -282,6 +282,7 @@ fn update_onboarding(info: &BootInfo) {
                 // Step 3 is the completed setup confirmation; Enter is accepted
                 // while leaving this milestone's final confirmation visible.
                 if key == b'\n' {
+                    ONBOARDING_STEP.store(3, Ordering::Relaxed);
                     redraw = true;
                 }
             }
@@ -560,6 +561,7 @@ fn glyph_rows(character: u8) -> [u8; 7] {
         b'x' => [0, 0, 17, 10, 4, 10, 17],
         b'y' => [0, 0, 17, 17, 15, 1, 14],
         b'z' => [0, 0, 31, 2, 4, 8, 31],
+        b':' => [0, 4, 4, 0, 4, 4, 0],
         b' ' => [0, 0, 0, 0, 0, 0, 0],
         _ => [0, 0, 0, 0, 0, 0, 0],
     }
