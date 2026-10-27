@@ -6,6 +6,7 @@ pub mod interrupts;
 pub mod heap;
 
 use core::{mem, ptr};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -53,6 +54,7 @@ struct UefiMemoryDescriptor {
 const UEFI_MEMORY_DESCRIPTOR_VERSION: u32 = 1;
 const UEFI_PAGE_SIZE: u64 = 4096;
 const MAX_MEMORY_MAP_BYTES: usize = 64 * 1024 * 1024;
+static RUNTIME_TEXT_DRAWN: AtomicBool = AtomicBool::new(false);
 
 /// Entry reached only after the UEFI boot services have been exited.
 ///
@@ -116,7 +118,9 @@ pub fn kernel_main(info: &BootInfo) -> ! {
 
 fn draw_runtime_status(info: &BootInfo) {
     // Render real glyphs once interrupt-driven runtime updates are active.
-    draw_text(info, 16, 24, 3, b"Hello Everest OS", (255, 255, 255));
+    if !RUNTIME_TEXT_DRAWN.swap(true, Ordering::Relaxed) {
+        draw_text(info, 16, 24, 3, b"Hello Everest OS", (255, 255, 255));
+    }
 }
 
 fn validate_memory_map(info: &BootInfo) -> bool {
@@ -388,5 +392,30 @@ fn glyph_rows(character: u8) -> [u8; 7] {
         b'z' => [0, 0, 31, 2, 4, 8, 31],
         b' ' => [0, 0, 0, 0, 0, 0, 0],
         _ => [0, 0, 0, 0, 0, 0, 0],
+    }
+}
+
+
+#[cfg(test)]
+mod font_tests {
+    use super::glyph_rows;
+
+    #[test]
+    fn bitmap_font_covers_ascii_uppercase_and_digits() {
+        for character in b'A'..=b'Z' {
+            assert!(glyph_rows(character).iter().any(|row| *row != 0), "missing glyph: {}", character as char);
+        }
+        for character in b'0'..=b'9' {
+            assert!(glyph_rows(character).iter().any(|row| *row != 0), "missing glyph: {}", character as char);
+        }
+    }
+
+    #[test]
+    fn bitmap_font_covers_every_lowercase_letter_used_by_boot_greeting() {
+        for character in b"Hello Everest OS" {
+            if *character != b' ' {
+                assert!(glyph_rows(*character).iter().any(|row| *row != 0), "missing glyph: {}", *character as char);
+            }
+        }
     }
 }
