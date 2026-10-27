@@ -198,4 +198,4 @@ fi
 
 # Reboot with the exact same writable data-disk image and no onboarding input.
 run_qemu 2
-printf 'Persistent configuration, keyboard navigation, mouse cursor and titlebar drag passed.\n'
+printf 'Terminal USER.TXT write, persistent configuration, keyboard navigation, mouse cursor and titlebar drag passed.\n'
