@@ -86,7 +86,7 @@ unsafe fn inw(port: u16) -> u16 {
     value
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Fat32Volume {
     pub partition_lba: u32,
     pub sectors_per_cluster: u8,
