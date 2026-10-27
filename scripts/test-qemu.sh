@@ -133,15 +133,18 @@ run_qemu() {
             # prime the packet decoder with a harmless one-pixel motion.
             printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":1}},{"type":"rel","data":{"axis":"y","value":1}}]}}\r\n'
             sleep 0.4
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-120}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
+            # Move from the framebuffer center to the File Manager titlebar
+            # (approximately x=200,y=120 at 1280x800). Keep each PS/2 delta
+            # within the signed 8-bit packet range.
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-60}}]}}\r\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}},{"type":"rel","data":{"axis":"y","value":-80}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-100}}]}}\r\n'
             sleep 0.2
-            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"y","value":-100}}]}}\r\n'
+            printf '{"execute":"input-send-event","arguments":{"events":[{"type":"rel","data":{"axis":"x","value":-40}}]}}\r\n'
             sleep 0.4
             { printf 'mouse_button 1\\n'; sleep 0.4; } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
             # Prime one packet after the button transition, then drag.
