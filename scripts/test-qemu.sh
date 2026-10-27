@@ -71,6 +71,7 @@ run_qemu() {
         -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
         -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \
         -drive "if=ide,index=0,media=disk,format=raw,file=$DATA_IMAGE" \
+        -device ps2-mouse \
         -display none \
         -monitor "unix:$MONITOR,server,nowait" \
         -serial none \
