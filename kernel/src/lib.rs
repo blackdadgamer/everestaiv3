@@ -6,7 +6,7 @@ pub mod interrupts;
 pub mod heap;
 
 use core::{mem, ptr};
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -54,7 +54,10 @@ struct UefiMemoryDescriptor {
 const UEFI_MEMORY_DESCRIPTOR_VERSION: u32 = 1;
 const UEFI_PAGE_SIZE: u64 = 4096;
 const MAX_MEMORY_MAP_BYTES: usize = 64 * 1024 * 1024;
-static RUNTIME_TEXT_DRAWN: AtomicBool = AtomicBool::new(false);
+const USERNAME_CAPACITY: usize = 24;
+static USERNAME: [AtomicU8; USERNAME_CAPACITY] =
+    [const { AtomicU8::new(0) }; USERNAME_CAPACITY];
+static USERNAME_LEN: AtomicUsize = AtomicUsize::new(0);
 
 /// Entry reached only after the UEFI boot services have been exited.
 ///
@@ -101,6 +104,7 @@ pub fn kernel_main(info: &BootInfo) -> ! {
     };
     if let Some(ref mut allocator) = allocator { heap::initialize(allocator); }
     draw_kernel_status(info, memory_map_valid, allocator_ready, virtual_memory_ready);
+    draw_welcome_screen(info);
     if virtual_memory_ready {
         unsafe { interrupts::initialize(); }
         unsafe { core::arch::asm!("sti", options(nomem, nostack)); }
@@ -111,15 +115,59 @@ pub fn kernel_main(info: &BootInfo) -> ! {
             core::arch::asm!("hlt", options(nomem, nostack, preserves_flags));
         }
         if virtual_memory_ready {
-            draw_runtime_status(info);
+            update_username_input(info);
         }
     }
 }
 
-fn draw_runtime_status(info: &BootInfo) {
-    // Render real glyphs once interrupt-driven runtime updates are active.
-    if !RUNTIME_TEXT_DRAWN.swap(true, Ordering::Relaxed) {
-        draw_text(info, 16, 24, 3, b"Hello Everest OS", (255, 255, 255));
+const INPUT_BG: (u8, u8, u8) = (18, 26, 48);
+const UI_WHITE: (u8, u8, u8) = (255, 255, 255);
+const UI_ACCENT: (u8, u8, u8) = (92, 145, 220);
+
+fn draw_border(info: &BootInfo, x: usize, y: usize, width: usize, height: usize, thickness: usize, color: (u8, u8, u8)) {
+    if width == 0 || height == 0 || thickness == 0 {
+        return;
+    }
+    let edge = thickness.min(width).min(height);
+    fill_rect(info, x, y, width, edge, color);
+    fill_rect(info, x, y.saturating_add(height.saturating_sub(edge)), width, edge, color);
+    fill_rect(info, x, y, edge, height, color);
+    fill_rect(info, x.saturating_add(width.saturating_sub(edge)), y, edge, height, color);
+}
+
+fn draw_welcome_screen(info: &BootInfo) {
+    draw_text(info, 80, 96, 3, b"Welcome to Everest OS", UI_WHITE);
+    draw_text(info, 80, 164, 2, b"Username", (160, 190, 230));
+    draw_border(info, 80, 188, 480, 56, 3, UI_ACCENT);
+    fill_rect(info, 83, 191, 474, 50, INPUT_BG);
+}
+
+fn update_username_input(info: &BootInfo) {
+    let mut length = USERNAME_LEN.load(Ordering::Relaxed);
+    let mut changed = false;
+
+    while let Some(key) = interrupts::pop_key() {
+        if key == 8 || key == 127 {
+            if length > 0 {
+                length -= 1;
+                USERNAME[length].store(0, Ordering::Relaxed);
+                changed = true;
+            }
+        } else if (32..=126).contains(&key) && length < USERNAME_CAPACITY {
+            USERNAME[length].store(key, Ordering::Relaxed);
+            length += 1;
+            changed = true;
+        }
+    }
+
+    if changed {
+        USERNAME_LEN.store(length, Ordering::Relaxed);
+        fill_rect(info, 83, 191, 474, 50, INPUT_BG);
+        let mut text = [0u8; USERNAME_CAPACITY];
+        for (index, byte) in text.iter_mut().enumerate().take(length) {
+            *byte = USERNAME[index].load(Ordering::Relaxed);
+        }
+        draw_text(info, 96, 205, 3, &text[..length], UI_WHITE);
     }
 }
 

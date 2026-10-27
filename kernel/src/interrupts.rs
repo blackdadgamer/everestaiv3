@@ -1,10 +1,37 @@
 //! Legacy 8259 PIC, PIT clock and PS/2 keyboard interrupt support.
-use core::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use core::arch::{asm, global_asm};
 
 static TICKS: AtomicU64 = AtomicU64::new(0);
 static LAST_KEY: AtomicU8 = AtomicU8::new(0);
 static KEY_COUNT: AtomicU64 = AtomicU64::new(0);
+
+// Single-producer (IRQ) / single-consumer (kernel loop) keyboard event ring.
+const KEY_QUEUE_CAPACITY: usize = 64;
+static KEY_QUEUE: [AtomicU8; KEY_QUEUE_CAPACITY] =
+    [const { AtomicU8::new(0) }; KEY_QUEUE_CAPACITY];
+static QUEUE_HEAD: AtomicUsize = AtomicUsize::new(0);
+static QUEUE_TAIL: AtomicUsize = AtomicUsize::new(0);
+
+fn enqueue_key(key: u8) {
+    let head = QUEUE_HEAD.load(Ordering::Relaxed);
+    let next = (head + 1) % KEY_QUEUE_CAPACITY;
+    if next == QUEUE_TAIL.load(Ordering::Acquire) {
+        return;
+    }
+    KEY_QUEUE[head].store(key, Ordering::Relaxed);
+    QUEUE_HEAD.store(next, Ordering::Release);
+}
+
+pub(crate) fn pop_key() -> Option<u8> {
+    let tail = QUEUE_TAIL.load(Ordering::Relaxed);
+    if tail == QUEUE_HEAD.load(Ordering::Acquire) {
+        return None;
+    }
+    let key = KEY_QUEUE[tail].load(Ordering::Relaxed);
+    QUEUE_TAIL.store((tail + 1) % KEY_QUEUE_CAPACITY, Ordering::Release);
+    Some(key)
+}
 
 
 global_asm!(
@@ -121,7 +148,7 @@ fn translate(scancode:u8)->u8{
         0x10..=0x1B=>ROW2[(scancode-0x10) as usize],
         0x1E..=0x29=>ROW3[(scancode-0x1E) as usize],
         0x2C..=0x35=>ROW4[(scancode-0x2C) as usize],
-        0x39=>b' ',0x1C=>b'\n',_=>0
+        0x0E=>8,0x39=>b' ',0x1C=>b'\n',_=>0
     }
 }
 #[unsafe(no_mangle)]
@@ -129,7 +156,7 @@ pub unsafe extern "C" fn everest_irq_dispatch(vector:u64){
     unsafe {
         match vector {
             32=>{TICKS.fetch_add(1,Ordering::Relaxed);},
-            33=>{let code=inb(0x60); if code & 0x80==0 {let ch=translate(code);if ch!=0{LAST_KEY.store(ch,Ordering::Relaxed);KEY_COUNT.fetch_add(1,Ordering::Relaxed);}}},
+            33=>{let code=inb(0x60); if code & 0x80==0 {let ch=translate(code);if ch!=0{LAST_KEY.store(ch,Ordering::Relaxed);KEY_COUNT.fetch_add(1,Ordering::Relaxed);enqueue_key(ch);}}},
             _=>{}
         }
         if vector>=40 {outb(0xA0,0x20);}
@@ -161,6 +188,7 @@ mod tests {
     fn translates_top_left_and_common_control_keys() {
         assert_eq!(translate(0x29), 0x60);
         assert_eq!(translate(0x39), b' ');
+        assert_eq!(translate(0x0E), 8);
         assert_eq!(translate(0x1C), b'\n');
         assert_eq!(translate(0x01), 0);
     }
