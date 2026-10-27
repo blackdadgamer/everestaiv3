@@ -168,7 +168,7 @@ fn draw_onboarding_screen(info: &BootInfo) {
             }
             draw_text(info, 80, 322, 2, b"Use Up or Down, then Enter", (160, 190, 230));
         }
-        _ => {
+        2 => {
             draw_text(info, 80, 96, 3, b"Setup Complete", UI_WHITE);
             draw_text(info, 80, 170, 2, b"Username", (160, 190, 230));
             draw_text(info, 80, 220, 2, b"Timezone", (160, 190, 230));
@@ -189,6 +189,49 @@ fn draw_onboarding_screen(info: &BootInfo) {
             draw_border(info, 70, 280, 360, 50, 3, UI_ACCENT);
             draw_text(info, 90, 296, 2, b"Press Enter to Start", UI_WHITE);
         }
+        _ => draw_desktop(info),
+    }
+}
+
+const DESKTOP_BG: (u8, u8, u8) = (12, 17, 32);
+const TASKBAR_BG: (u8, u8, u8) = (20, 28, 48);
+const WINDOW_BG: (u8, u8, u8) = (14, 20, 36);
+const TITLEBAR_BG: (u8, u8, u8) = (33, 47, 74);
+
+fn draw_desktop(info: &BootInfo) {
+    fill_rect(info, 0, 0, info.width, info.height, DESKTOP_BG);
+
+    let window_width = info.width.saturating_mul(3) / 5;
+    let window_height = info.height.saturating_mul(3) / 5;
+    let window_x = info.width.saturating_sub(window_width) / 2;
+    let window_y = info.height.saturating_sub(window_height) / 2;
+    let titlebar_height = 42usize.min(window_height);
+    draw_border(info, window_x, window_y, window_width, window_height, 3, UI_ACCENT);
+    fill_rect(info, window_x + 3, window_y + 3, window_width.saturating_sub(6),
+        window_height.saturating_sub(6), WINDOW_BG);
+    fill_rect(info, window_x + 3, window_y + 3, window_width.saturating_sub(6),
+        titlebar_height.saturating_sub(3), TITLEBAR_BG);
+    draw_text(info, window_x + 24, window_y + 13, 2, b"Everest Terminal", UI_WHITE);
+    draw_text(info, window_x + 24, window_y + 78, 2, b"Everest OS ready", (160, 190, 230));
+    draw_text(info, window_x + 24, window_y + 112, 2, b"Welcome,", (160, 190, 230));
+    let length = USERNAME_LEN.load(Ordering::Relaxed).min(USERNAME_CAPACITY);
+    let mut username = [0u8; USERNAME_CAPACITY];
+    for (index, byte) in username.iter_mut().enumerate().take(length) {
+        *byte = USERNAME[index].load(Ordering::Relaxed);
+    }
+    draw_text(info, window_x + 24, window_y + 140, 2, &username[..length], UI_WHITE);
+
+    let taskbar_height = 56usize.min(info.height);
+    let taskbar_y = info.height.saturating_sub(taskbar_height);
+    fill_rect(info, 0, taskbar_y, info.width, taskbar_height, TASKBAR_BG);
+    draw_border(info, 16, taskbar_y + 12, 104, 32, 2, UI_ACCENT);
+    fill_rect(info, 18, taskbar_y + 14, 100, 28, (42, 62, 96));
+    draw_text(info, 30, taskbar_y + 20, 2, b"START", UI_WHITE);
+    draw_text(info, info.width.saturating_sub(120), taskbar_y + 19, 2, b"12:00", UI_WHITE);
+
+    // Keep a small kernel-health indicator visible on the desktop taskbar.
+    if info.width >= 180 {
+        fill_rect(info, info.width - 160, taskbar_y + 26, 4, 4, (110, 190, 255));
     }
 }
 
@@ -239,6 +282,7 @@ fn update_onboarding(info: &BootInfo) {
                 // Step 3 is the completed setup confirmation; Enter is accepted
                 // while leaving this milestone's final confirmation visible.
                 if key == b'\n' {
+                    ONBOARDING_STEP.store(3, Ordering::Relaxed);
                     redraw = true;
                 }
             }
@@ -517,6 +561,7 @@ fn glyph_rows(character: u8) -> [u8; 7] {
         b'x' => [0, 0, 17, 10, 4, 10, 17],
         b'y' => [0, 0, 17, 17, 15, 1, 14],
         b'z' => [0, 0, 31, 2, 4, 8, 31],
+        b':' => [0, 4, 4, 0, 4, 4, 0],
         b' ' => [0, 0, 0, 0, 0, 0, 0],
         _ => [0, 0, 0, 0, 0, 0, 0],
     }

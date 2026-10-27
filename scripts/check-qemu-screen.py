@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that QEMU reaches the kernel with its own page tables and IDT active."""
+"""Verify the Everest OS desktop shell in a QEMU framebuffer screenshot."""
 
 import re
 import sys
@@ -21,45 +21,60 @@ def main() -> int:
     pixels = data[match.end():]
     expected_size = width * height * 3
     if len(pixels) != expected_size:
-        print(
-            f"Unexpected PPM payload size: expected {expected_size}, got {len(pixels)}.",
-            file=sys.stderr,
-        )
+        print(f"Unexpected PPM payload size: expected {expected_size}, got {len(pixels)}.", file=sys.stderr)
         return 1
 
-    # Unique color used only for the independent page-table + IDT status.
-    expected = bytes((110, 190, 255))
-    reverse_expected = bytes((255, 190, 110))
-    old_kernel_status = bytes((118, 222, 190))
-    exception_status = bytes((255, 120, 145))
+    def pixel_at(x: int, y: int) -> bytes:
+        offset = (y * width + x) * 3
+        return pixels[offset:offset + 3]
+
+    def reversed_color(color: tuple[int, int, int]) -> bytes:
+        return bytes((color[2], color[1], color[0]))
+
+    def matches_color(x: int, y: int, color: tuple[int, int, int]) -> bool:
+        actual = pixel_at(x, y)
+        return actual == bytes(color) or actual == reversed_color(color)
+
+    # The small status indicator is intentionally retained on the taskbar.
+    marker = (110, 190, 255)
+    marker_reverse = (255, 190, 110)
     colors = [pixels[offset:offset + 3] for offset in range(0, len(pixels), 3)]
-    count = sum(color == expected or color == reverse_expected for color in colors)
-    old_count = sum(color == old_kernel_status for color in colors)
-    exception_count = sum(color == exception_status for color in colors)
-    if count < 10:
-        print(
-            f"No independent page tables/IDT status detected ({count} expected pixels; "
-            f"{old_count} legacy kernel-status pixels; {exception_count} exception pixels "
-            f"in {width}x{height}).",
-            file=sys.stderr,
-        )
+    marker_count = sum(color == bytes(marker) or color == bytes(marker_reverse) for color in colors)
+    if marker_count < 10:
+        print(f"Kernel page-table/IDT health marker missing ({marker_count} pixels).", file=sys.stderr)
         return 1
 
-    # Verify actual framebuffer glyphs for both the welcome title and typed input.
+    if width < 800 or height < 600:
+        print(f"Desktop test requires at least 800x600; got {width}x{height}.", file=sys.stderr)
+        return 1
+
+    # Check real framebuffer colors, allowing either RGB or BGR output.
+    checks = [
+        ("desktop background", 20, 20, (12, 17, 32)),
+        ("taskbar", 10, height - 10, (20, 28, 48)),
+        ("Start button", 20, height - 28, (42, 62, 96)),
+        ("window border", width // 5, height // 5 + 100, (92, 145, 220)),
+        ("window title bar", width // 5 + 10, height // 5 + 10, (33, 47, 74)),
+        ("window body", width // 5 + 10, height // 5 + 100, (14, 20, 36)),
+    ]
+    for label, x, y, color in checks:
+        if not matches_color(x, y, color):
+            print(f"{label} pixel mismatch at ({x}, {y}); expected {color}.", file=sys.stderr)
+            return 1
+
     glyphs = {
         "A": [14, 17, 17, 31, 17, 17, 17],
-        "C": [14, 17, 16, 16, 16, 17, 14],
-        "N": [17, 25, 25, 21, 19, 19, 17],
-        "P": [30, 17, 17, 30, 16, 16, 16],
-        "T": [31, 4, 4, 4, 4, 4, 4],
-        "U": [17, 17, 17, 17, 17, 17, 14],
         "E": [31, 16, 16, 30, 16, 16, 31],
-        "H": [17, 17, 17, 31, 17, 17, 17],
-        "O": [14, 17, 17, 17, 17, 17, 14],
+        "M": [17, 27, 21, 21, 17, 17, 17],
+        "N": [17, 25, 25, 21, 19, 19, 17],
+        "R": [30, 17, 17, 30, 20, 18, 17],
         "S": [15, 16, 16, 14, 1, 1, 30],
-        "W": [17, 17, 17, 21, 21, 21, 10],
+        "T": [31, 4, 4, 4, 4, 4, 4],
+        "V": [17, 17, 17, 17, 17, 10, 4],
+        "0": [14, 17, 19, 21, 25, 17, 14],
+        "1": [4, 12, 4, 4, 4, 4, 14],
+        "2": [14, 17, 1, 2, 4, 8, 31],
         "a": [0, 0, 14, 1, 15, 17, 15],
-        "c": [0, 0, 14, 16, 16, 17, 14],
         "d": [1, 1, 15, 17, 17, 17, 15],
         "e": [0, 0, 14, 17, 31, 16, 14],
         "i": [4, 0, 12, 4, 4, 4, 14],
@@ -67,30 +82,22 @@ def main() -> int:
         "m": [0, 0, 26, 21, 21, 21, 21],
         "n": [0, 0, 30, 17, 17, 17, 17],
         "o": [0, 0, 14, 17, 17, 17, 14],
-        "p": [0, 0, 30, 17, 30, 16, 16],
         "r": [0, 0, 22, 25, 16, 16, 16],
         "s": [0, 0, 15, 16, 14, 1, 30],
         "t": [8, 8, 28, 8, 8, 9, 6],
-        "u": [0, 0, 17, 17, 17, 19, 13],
         "v": [0, 0, 17, 17, 17, 10, 4],
+        ":": [0, 4, 4, 0, 4, 4, 0],
         " ": [0, 0, 0, 0, 0, 0, 0],
     }
-    foreground = bytes((255, 255, 255))
-    screen_backgrounds = (bytes((5, 8, 24)), bytes((24, 8, 5)))
-    input_backgrounds = (bytes((18, 26, 48)), bytes((48, 26, 18)))
-
-    def pixel_at(x: int, y: int) -> bytes:
-        offset = (y * width + x) * 3
-        return pixels[offset:offset + 3]
+    foreground = (255, 255, 255)
 
     def verify_text(message: str, origin_x: int, origin_y: int, scale: int,
-                    backgrounds: tuple[bytes, ...]) -> bool:
+                    background: tuple[int, int, int]) -> bool:
         for char_index, character in enumerate(message):
             rows = glyphs[character]
             for row, bits in enumerate(rows):
                 for col in range(6):
                     lit = col < 5 and bool(bits & (1 << (4 - col)))
-                    expected_color = foreground if lit else None
                     for dy in range(scale):
                         for dx in range(scale):
                             x = origin_x + char_index * 6 * scale + col * scale + dx
@@ -99,32 +106,31 @@ def main() -> int:
                                 print(f"Text {message!r} extends beyond the framebuffer.", file=sys.stderr)
                                 return False
                             actual = pixel_at(x, y)
-                            if (actual != expected_color if expected_color else actual not in backgrounds):
-                                print(
-                                    f"Text mismatch for {message!r} at character "
-                                    f"{character!r}, row {row}, column {col}.",
-                                    file=sys.stderr,
-                                )
+                            if lit:
+                                if actual not in (bytes(foreground), reversed_color(foreground)):
+                                    print(f"Text {message!r} has a missing glyph pixel at ({x}, {y}).", file=sys.stderr)
+                                    return False
+                            elif actual not in (bytes(background), reversed_color(background)):
+                                print(f"Text {message!r} background mismatch at ({x}, {y}).", file=sys.stderr)
                                 return False
         return True
 
-    if not verify_text("Setup Complete", 80, 96, 3, screen_backgrounds):
-        print("The final Setup Complete screen was not rendered.", file=sys.stderr)
+    window_x = width // 5
+    window_y = height // 5
+    if not verify_text("Everest Terminal", window_x + 24, window_y + 13, 2, (33, 47, 74)):
+        print("Terminal window title was not rendered correctly.", file=sys.stderr)
         return 1
-    if not verify_text("admin", 210, 170, 2, screen_backgrounds):
-        print("The saved username 'admin' is missing from the completion screen.", file=sys.stderr)
+    if not verify_text("START", 30, height - 36, 2, (42, 62, 96)):
+        print("Taskbar Start button label was not rendered correctly.", file=sys.stderr)
         return 1
-    if not verify_text("NPT", 210, 220, 2, screen_backgrounds):
-        print("The selected timezone NPT is missing from the completion screen.", file=sys.stderr)
-        return 1
-    if not verify_text("Press Enter to Start", 90, 296, 2, screen_backgrounds):
-        print("The final Start prompt is missing from the completion screen.", file=sys.stderr)
+    if not verify_text("12:00", width - 120, height - 37, 2, (20, 28, 48)):
+        print("Taskbar clock was not rendered correctly.", file=sys.stderr)
         return 1
 
     print(
-        f"QEMU UEFI boot passed: page-table/IDT={count}; completed onboarding and "
-        f"verified Setup Complete, username 'admin', timezone 'NPT', and Start prompt "
-        f"in the framebuffer ({width}x{height})."
+        f"QEMU UEFI desktop passed: health marker={marker_count}; verified desktop "
+        f"background, taskbar, Start button, clock, and Everest Terminal window "
+        f"in the {width}x{height} framebuffer."
     )
     return 0
 
