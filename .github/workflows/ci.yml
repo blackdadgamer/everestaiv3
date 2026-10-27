@@ -34,7 +34,7 @@ jobs:
         run: cargo test --locked -p everest-kernel
 
       - name: Install QEMU/OVMF test tools
-        timeout-minutes: 5
+        timeout-minutes: 12
         run: |
           packages="qemu-system-x86 ovmf dosfstools mtools socat"
           if ! sudo apt-get install -y $packages; then
