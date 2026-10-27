@@ -64,7 +64,8 @@ qemu-system-x86_64 \
     -drive "if=pflash,format=raw,file=$VARS_COPY" \
     -device qemu-xhci,id=xhci \
     -drive "if=none,id=usb,format=raw,file=$USB_IMAGE" \
-    -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \\\n    -drive "if=ide,index=0,format=raw,file=$DISK_IMAGE" \\
+    -device usb-storage,bus=xhci.0,drive=usb,bootindex=1 \
+    -drive "if=ide,index=0,format=raw,file=$DISK_IMAGE" \
     -display none \
     -monitor "unix:$MONITOR,server,nowait" \
     -serial none \
