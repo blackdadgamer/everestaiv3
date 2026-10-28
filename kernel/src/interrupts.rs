@@ -5,7 +5,8 @@ use core::arch::{asm, global_asm};
 static TICKS: AtomicU64 = AtomicU64::new(0);
 static LAST_KEY: AtomicU8 = AtomicU8::new(0);
 static KEY_COUNT: AtomicU64 = AtomicU64::new(0);
-static SHIFT_PRESSED: AtomicU8 = AtomicU8::new(0);\nstatic ALT_PRESSED: AtomicU8 = AtomicU8::new(0);
+static SHIFT_PRESSED: AtomicU8 = AtomicU8::new(0);
+static ALT_PRESSED: AtomicU8 = AtomicU8::new(0);
 
 // Single-producer (IRQ) / single-consumer (kernel loop) keyboard event ring.
 const KEY_QUEUE_CAPACITY: usize = 64;
