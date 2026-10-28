@@ -248,6 +248,9 @@ static DRAG_OFFSET_Y: AtomicUsize = AtomicUsize::new(0);
 static START_MENU_OPEN: AtomicU8 = AtomicU8::new(0);
 static APP_WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
 static APP_WINDOW_KIND: [AtomicU8; 8] = [const { AtomicU8::new(0) }; 8];
+static APP_WINDOW_ID: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+static APP_ID_CLOCK: AtomicUsize = AtomicUsize::new(1);
+static ACTIVE_APP_WINDOW: AtomicUsize = AtomicUsize::new(usize::MAX);
 static APP_WINDOW_X: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static APP_WINDOW_Y: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static APP_WINDOW_Z: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
@@ -261,9 +264,9 @@ static CALCULATOR_DISPLAY: [AtomicU8; CALCULATOR_CAPACITY] =
 static CALCULATOR_LEN: AtomicUsize = AtomicUsize::new(0);
 static CALCULATOR_RESULT_OK: AtomicU8 = AtomicU8::new(0);
 const EDITOR_CAPACITY: usize = 96;
-static EDITOR_BUFFER: [AtomicU8; EDITOR_CAPACITY] = [const { AtomicU8::new(0) }; EDITOR_CAPACITY];
-static EDITOR_LEN: AtomicUsize = AtomicUsize::new(0);
-static EDITOR_SAVED: AtomicU8 = AtomicU8::new(0);
+static EDITOR_BUFFER: [AtomicU8; EDITOR_CAPACITY * 8] = [const { AtomicU8::new(0) }; EDITOR_CAPACITY * 8];
+static EDITOR_LEN: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+static EDITOR_SAVED: [AtomicU8; 8] = [const { AtomicU8::new(0) }; 8];
 
 fn spawn_app_window(info: &BootInfo, kind: u8) {
     let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
@@ -273,8 +276,12 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
         oldest
     };
     APP_WINDOW_KIND[slot].store(kind, Ordering::Relaxed);
+    APP_WINDOW_ID[slot].store(APP_ID_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+    ACTIVE_APP_WINDOW.store(slot, Ordering::Relaxed);
     let editor_already_open = (0..count).any(|i| APP_WINDOW_KIND[i].load(Ordering::Relaxed) == 5);
-    let (window_x, window_y) = if kind == 4 && editor_already_open {
+    let (window_x, window_y) = if kind == 5 && editor_already_open {
+        (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
+    } else if kind == 4 && editor_already_open {
         (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
     } else if kind == 4 || kind == 5 {
         (info.width.saturating_sub(520) / 2, info.height.saturating_sub(336) / 2)
@@ -321,7 +328,7 @@ fn draw_app_windows(info: &BootInfo) {
         if kind == 4 {
             draw_calculator(info, x, y, w, h);
         } else if kind == 5 {
-            draw_text_editor(info, x, y, w, h);
+            draw_text_editor(info, i, x, y, w, h);
         } else if kind == 3 {
             draw_text(info, x + 24, y + 90, 2, b"Everest OS v1.0", FILE_TEXT);
             draw_text(info, x + 24, y + 140, 2, b"Created by Amit Pathak", FILE_TEXT);
@@ -435,13 +442,17 @@ fn handle_calculator_click(info: &BootInfo, x: usize, y: usize) -> bool {
 }
 
 
-fn draw_text_editor(info: &BootInfo, x: usize, y: usize, w: usize, _h: usize) {
+fn draw_text_editor(info: &BootInfo, index: usize, x: usize, y: usize, w: usize, _h: usize) {
     fill_rect(info, x + 18, y + 54, w.saturating_sub(36), 174, (16, 18, 27));
     draw_border(info, x + 18, y + 54, w.saturating_sub(36), 174, 1, (65, 72, 97));
     draw_text(info, x + 28, y + 62, 1, b"NOTES.TXT", (122, 162, 247));
-    let len = EDITOR_LEN.load(Ordering::Relaxed).min(EDITOR_CAPACITY);
+    let id = APP_WINDOW_ID[index].load(Ordering::Relaxed);
+    let id_label = [b'I', b'D', b' ', b'0' + (id % 10) as u8];
+    draw_text(info, x + w.saturating_sub(96), y + 15, 1, &id_label, UI_WHITE);
+    let len = EDITOR_LEN[index].load(Ordering::Relaxed).min(EDITOR_CAPACITY);
     let mut bytes = [0u8; EDITOR_CAPACITY];
-    for (i, byte) in bytes.iter_mut().enumerate().take(len) { *byte = EDITOR_BUFFER[i].load(Ordering::Relaxed); }
+    let base = index * EDITOR_CAPACITY;
+    for (i, byte) in bytes.iter_mut().enumerate().take(len) { *byte = EDITOR_BUFFER[base + i].load(Ordering::Relaxed); }
     for row in 0..3 {
         let start = row * 30;
         if start >= len { break; }
@@ -451,57 +462,59 @@ fn draw_text_editor(info: &BootInfo, x: usize, y: usize, w: usize, _h: usize) {
     fill_rect(info, x + 380, y + 244, 112, 34, (49, 57, 82));
     draw_border(info, x + 380, y + 244, 112, 34, 1, (122, 162, 247));
     draw_text(info, x + 410, y + 256, 1, b"SAVE", UI_WHITE);
-    if EDITOR_SAVED.load(Ordering::Relaxed) != 0 {
+    if EDITOR_SAVED[index].load(Ordering::Relaxed) != 0 {
         fill_rect(info, x + 24, y + 244, 8, 8, (80, 200, 160));
         draw_text(info, x + 42, y + 250, 1, b"SAVED TO DISK", (80, 200, 160));
     }
 }
 
 fn handle_text_editor_key(key: u8) -> bool {
-    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
-    let mut top = None;
-    let mut top_z = 0usize;
-    for i in 0..count {
-        let z = APP_WINDOW_Z[i].load(Ordering::Relaxed);
-        if z >= top_z { top_z = z; top = Some(APP_WINDOW_KIND[i].load(Ordering::Relaxed)); }
-    }
-    if top != Some(5) { return false; }
-    let len = EDITOR_LEN.load(Ordering::Relaxed).min(EDITOR_CAPACITY);
+    let index = ACTIVE_APP_WINDOW.load(Ordering::Relaxed);
+    if index >= APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8)
+        || APP_WINDOW_KIND[index].load(Ordering::Relaxed) != 5 { return false; }
+    let base = index * EDITOR_CAPACITY;
+    let len = EDITOR_LEN[index].load(Ordering::Relaxed).min(EDITOR_CAPACITY);
     if key == 8 || key == 127 {
         if len > 0 {
-            EDITOR_BUFFER[len - 1].store(0, Ordering::Relaxed);
-            EDITOR_LEN.store(len - 1, Ordering::Relaxed);
-            EDITOR_SAVED.store(0, Ordering::Relaxed);
+            EDITOR_BUFFER[base + len - 1].store(0, Ordering::Relaxed);
+            EDITOR_LEN[index].store(len - 1, Ordering::Relaxed);
+            EDITOR_SAVED[index].store(0, Ordering::Relaxed);
         }
     } else if (32..=126).contains(&key) && len < EDITOR_CAPACITY {
-        let previous = if len == 0 { b' ' } else { EDITOR_BUFFER[len - 1].load(Ordering::Relaxed) };
+        let previous = if len == 0 { b' ' } else { EDITOR_BUFFER[base + len - 1].load(Ordering::Relaxed) };
         let stored = if key.is_ascii_lowercase() && previous == b' ' { key.to_ascii_uppercase() } else { key };
-        EDITOR_BUFFER[len].store(stored, Ordering::Relaxed);
-        EDITOR_LEN.store(len + 1, Ordering::Relaxed);
-        EDITOR_SAVED.store(0, Ordering::Relaxed);
+        EDITOR_BUFFER[base + len].store(stored, Ordering::Relaxed);
+        EDITOR_LEN[index].store(len + 1, Ordering::Relaxed);
+        EDITOR_SAVED[index].store(0, Ordering::Relaxed);
     }
     true
 }
 
 fn handle_text_editor_click(info: &BootInfo, x: usize, y: usize) -> bool {
     let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
-    for i in (0..count).rev() {
+    let mut target = None;
+    let mut target_z = 0usize;
+    for i in 0..count {
         if APP_WINDOW_KIND[i].load(Ordering::Relaxed) != 5 { continue; }
         let wx = APP_WINDOW_X[i].load(Ordering::Relaxed);
         let wy = APP_WINDOW_Y[i].load(Ordering::Relaxed);
         if x >= wx + 380 && x < wx + 492 && y >= wy + 244 && y < wy + 278 {
-            let len = EDITOR_LEN.load(Ordering::Relaxed).min(EDITOR_CAPACITY);
-            let mut bytes = [0u8; EDITOR_CAPACITY];
-            for (j, byte) in bytes.iter_mut().enumerate().take(len) { *byte = EDITOR_BUFFER[j].load(Ordering::Relaxed); }
-            let saved = filesystem::open_volume()
-                .and_then(|volume| volume.write_root_file(b"NOTES   TXT", &bytes[..len]))
-                .is_ok();
-            EDITOR_SAVED.store(saved as u8, Ordering::Relaxed);
-            draw_desktop(info);
-            return true;
+            let z = APP_WINDOW_Z[i].load(Ordering::Relaxed);
+            if target.is_none() || z >= target_z { target = Some(i); target_z = z; }
         }
     }
-    false
+    let Some(index) = target else { return false; };
+    ACTIVE_APP_WINDOW.store(index, Ordering::Relaxed);
+    let len = EDITOR_LEN[index].load(Ordering::Relaxed).min(EDITOR_CAPACITY);
+    let base = index * EDITOR_CAPACITY;
+    let mut bytes = [0u8; EDITOR_CAPACITY];
+    for (j, byte) in bytes.iter_mut().enumerate().take(len) { *byte = EDITOR_BUFFER[base + j].load(Ordering::Relaxed); }
+    let saved = filesystem::open_volume()
+        .and_then(|volume| volume.write_root_file(b"NOTES   TXT", &bytes[..len]))
+        .is_ok();
+    EDITOR_SAVED[index].store(saved as u8, Ordering::Relaxed);
+    draw_desktop(info);
+    true
 }
 
 fn parse_calculator_number(bytes: &[u8]) -> Option<usize> {
@@ -652,6 +665,26 @@ fn draw_mouse_cursor(info: &BootInfo, x: usize, y: usize) {
     }
 }
 
+fn activate_app_window_at(x: usize, y: usize) {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    let mut hit = None;
+    let mut top_z = 0usize;
+    for i in 0..count {
+        let ax = APP_WINDOW_X[i].load(Ordering::Relaxed);
+        let ay = APP_WINDOW_Y[i].load(Ordering::Relaxed);
+        let aw = APP_WINDOW_W[i].load(Ordering::Relaxed);
+        let ah = APP_WINDOW_H[i].load(Ordering::Relaxed);
+        if x >= ax && x < ax + aw && y >= ay && y < ay + ah + 36 {
+            let z = APP_WINDOW_Z[i].load(Ordering::Relaxed);
+            if hit.is_none() || z >= top_z { hit = Some(i); top_z = z; }
+        }
+    }
+    if let Some(index) = hit {
+        ACTIVE_APP_WINDOW.store(index, Ordering::Relaxed);
+        APP_WINDOW_Z[index].store(APP_Z_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+    }
+}
+
 fn process_mouse_events(info: &BootInfo) -> bool {
     if ONBOARDING_STEP.load(Ordering::Relaxed) < 3 { return false; }
     let mut changed = false;
@@ -668,6 +701,7 @@ fn process_mouse_events(info: &BootInfo) -> bool {
         let wx = WINDOW_X.load(Ordering::Relaxed).min(info.width.saturating_sub(window_width));
         let wy = WINDOW_Y.load(Ordering::Relaxed).min(info.height.saturating_sub(window_height + 36));
         if left_now && !left_before {
+            activate_app_window_at(x, y);
             let taskbar_y = info.height.saturating_sub(36);
             if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
