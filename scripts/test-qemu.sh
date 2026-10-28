@@ -254,10 +254,14 @@ run_qemu() {
             sleep 0.7
             printf 'screendump %s\n' "$TMP_DIR/editor-window.ppm"
             # Keyboard input is delivered through the guest PS/2 keyboard IRQ.
-            for key in e v e r e s t spc o s; do
+            for key in e v e r e s t spc; do
                 printf 'sendkey %s\n' "$key"
                 sleep 0.25
             done
+            printf 'sendkey shift-o\n'
+            sleep 0.25
+            printf 'sendkey shift-s\n'
+            sleep 0.25
             # Move to the Save button in the centered Text Editor window.
             for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36; do
                 printf 'mouse_move 20 0\n'
