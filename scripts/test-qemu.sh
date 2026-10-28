@@ -330,8 +330,8 @@ run_qemu() {
             printf 'mouse_button 0\n'
             sleep 0.7
             printf 'screendump %s\n' "$TMP_DIR/editor-instances-tiled.ppm"
-            sleep 1
-            sleep 0.5
+            sleep 0.2
+            sleep 0.3
             # Open Terminal and a fresh Text Editor using only keyboard shortcuts.
             printf 'sendkey alt-t\n'
             sleep 0.6
