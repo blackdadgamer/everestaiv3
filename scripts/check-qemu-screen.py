@@ -66,11 +66,11 @@ def main() -> int:
         return 0
     if "--window-tiles" in sys.argv:
         border = (187, 154, 247)
-        samples = [(2, height // 3), (width // 2 + 2, height // 3)]
+        samples = [(0, height // 3), (width // 2, height // 3)]
         if not all(is_color(pixel(x, y), border) for x, y in samples):
             print("Left and right snapped app windows were not both visible.", file=sys.stderr)
             return 1
-        if not is_color(pixel(width // 4, 2), border) or not is_color(pixel(3 * width // 4, 2), border):
+        if not is_color(pixel(width // 4, 0), border) or not is_color(pixel(3 * width // 4, 0), border):
             print("Tiled windows did not span both screen halves.", file=sys.stderr)
             return 1
         print("Left and right snapped app windows verified simultaneously.")
