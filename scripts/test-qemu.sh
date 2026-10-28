@@ -226,6 +226,56 @@ run_qemu() {
             printf 'mouse_button 0\n'
             sleep 0.4
             printf 'screendump %s\n' "$TMP_DIR/calculator-result.ppm"
+            # Return to the lower-left corner, open Start, and select Text Editor.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+                printf 'mouse_move -20 0\n'
+                sleep 0.03
+            done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+                printf 'mouse_move 0 20\n'
+                sleep 0.03
+            done
+            for step in 1 2 3; do
+                printf 'mouse_move 20 0\n'
+                sleep 0.05
+            done
+            printf 'mouse_move 0 -20\n'
+            sleep 0.2
+            printf 'mouse_button 1\n'
+            sleep 0.2
+            printf 'mouse_button 0\n'
+            sleep 0.4
+            printf 'screendump %s\n' "$TMP_DIR/editor-start-menu.ppm"
+            printf 'mouse_move 0 -20\n'
+            sleep 0.2
+            printf 'mouse_button 1\n'
+            sleep 0.2
+            printf 'mouse_button 0\n'
+            sleep 0.7
+            printf 'screendump %s\n' "$TMP_DIR/editor-window.ppm"
+            # Keyboard input is delivered through the guest PS/2 keyboard IRQ.
+            for key in e v e r e s t spc; do
+                printf 'sendkey %s\n' "$key"
+                sleep 0.25
+            done
+            printf 'sendkey shift-o\n'
+            sleep 0.25
+            printf 'sendkey shift-s\n'
+            sleep 0.25
+            # Move to the Save button in the centered Text Editor window.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36; do
+                printf 'mouse_move 20 0\n'
+                sleep 0.03
+            done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
+                printf 'mouse_move 0 -20\n'
+                sleep 0.03
+            done
+            printf 'mouse_button 1\n'
+            sleep 0.3
+            printf 'mouse_button 0\n'
+            sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/editor-saved.ppm"
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
@@ -233,12 +283,14 @@ run_qemu() {
         python3 scripts/check-qemu-screen.py "$TMP_DIR/start-menu.ppm" --start-menu
         python3 scripts/check-qemu-screen.py "$TMP_DIR/calculator-window.ppm" --calculator-window
         python3 scripts/check-qemu-screen.py "$TMP_DIR/calculator-result.ppm" --calculator-result
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-window.ppm" --editor-window
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-saved.ppm" --editor-saved
     fi
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--calculator-result"); then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--editor-saved"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi
@@ -278,4 +330,17 @@ fi
 
 # Reboot with the exact same writable data-disk image and no onboarding input.
 run_qemu 2
-printf 'Terminal USER.TXT write, persistent configuration, keyboard navigation, mouse cursor and titlebar drag passed.\n'
+# Verify the Text Editor persisted the exact typed bytes to the FAT32 disk.
+if ! mtype -i "$DATA_IMAGE" ::NOTES.TXT > "$TMP_DIR/NOTES.TXT"; then
+    printf 'NOTES.TXT was not written by the Text Editor.\n' >&2
+    exit 1
+fi
+printf 'Everest OS' > "$TMP_DIR/expected-notes.txt"
+if ! cmp -s "$TMP_DIR/expected-notes.txt" "$TMP_DIR/NOTES.TXT"; then
+    printf 'NOTES.TXT contents did not match the text typed in the editor.\n' >&2
+    printf 'Actual NOTES.TXT:\n' >&2
+    cat "$TMP_DIR/NOTES.TXT" >&2
+    exit 1
+fi
+
+printf 'Terminal USER.TXT and Text Editor NOTES.TXT writes, persistent configuration, keyboard input, mouse cursor and titlebar drag passed.\n'

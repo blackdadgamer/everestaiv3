@@ -6,7 +6,7 @@ from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result]", file=sys.stderr)
+        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result|--editor-window|--editor-saved]", file=sys.stderr)
         return 2
     path = Path(sys.argv[1])
     data = path.read_bytes()
@@ -31,7 +31,7 @@ def main() -> int:
         print("Tokyo Night desktop background mismatch.", file=sys.stderr)
         return 1
     if "--start-menu" in sys.argv:
-        if not is_color(pixel(12, height - 36 - 198), (187, 154, 247)):
+        if not is_color(pixel(12, height - 36 - 232), (187, 154, 247)):
             print("Start menu popup was not visible above the taskbar.", file=sys.stderr)
             return 1
         print("Start menu popup verified.")
@@ -49,7 +49,20 @@ def main() -> int:
             print("Calculator display did not update after mouse input.", file=sys.stderr)
             return 1
         print("Calculator mouse input updated the display.")
-
+        return 0
+    if "--editor-window" in sys.argv:
+        if not is_color(pixel((width - 520) // 2, (height - 336) // 2), (187, 154, 247)):
+            print("Text Editor window was not centered.", file=sys.stderr)
+            return 1
+        print("Centered Text Editor window verified.")
+        return 0
+    if "--editor-saved" in sys.argv:
+        marker_x = (width - 520) // 2 + 24
+        marker_y = (height - 336) // 2 + 244
+        if not is_color(pixel(marker_x, marker_y), (80, 200, 160)):
+            print("Text Editor did not show its successful-save marker.", file=sys.stderr)
+            return 1
+        print("Text Editor Save feedback verified.")
         return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.
