@@ -252,6 +252,11 @@ static APP_WINDOW_X: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static APP_WINDOW_Y: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static APP_WINDOW_Z: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static APP_Z_CLOCK: AtomicUsize = AtomicUsize::new(1);
+const CALCULATOR_CAPACITY: usize = 24;
+static CALCULATOR_DISPLAY: [AtomicU8; CALCULATOR_CAPACITY] =
+    [const { AtomicU8::new(0) }; CALCULATOR_CAPACITY];
+static CALCULATOR_LEN: AtomicUsize = AtomicUsize::new(0);
+static CALCULATOR_RESULT_OK: AtomicU8 = AtomicU8::new(0);
 
 fn spawn_app_window(info: &BootInfo, kind: u8) {
     let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
@@ -261,8 +266,13 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
         oldest
     };
     APP_WINDOW_KIND[slot].store(kind, Ordering::Relaxed);
-    APP_WINDOW_X[slot].store(180 + (slot * 44), Ordering::Relaxed);
-    APP_WINDOW_Y[slot].store(100 + (slot * 36), Ordering::Relaxed);
+    let (window_x, window_y) = if kind == 4 {
+        (info.width.saturating_sub(520) / 2, info.height.saturating_sub(336) / 2)
+    } else {
+        (180 + (slot * 44), 100 + (slot * 36))
+    };
+    APP_WINDOW_X[slot].store(window_x, Ordering::Relaxed);
+    APP_WINDOW_Y[slot].store(window_y, Ordering::Relaxed);
     APP_WINDOW_Z[slot].store(APP_Z_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
     if count < 8 { APP_WINDOW_COUNT.store(count + 1, Ordering::Relaxed); }
     START_MENU_OPEN.store(0, Ordering::Relaxed);
@@ -290,13 +300,15 @@ fn draw_app_windows(info: &BootInfo) {
         draw_border(info, x, y, w, h, 2, FILE_SELECTION);
         fill_rect(info, x + 2, y + 2, w - 4, h - 4, WINDOW_BG);
         fill_rect(info, x + 2, y + 2, w - 4, 42, TITLEBAR_BG);
-        let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", _ => b"SETTINGS" };
+        let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", 3 => b"SETTINGS", _ => b"CALCULATOR" };
         draw_text(info, x + 18, y + 15, 2, title, UI_WHITE);
         if kind == 1 {
             // Stable framebuffer marker used by the headless launcher regression test.
             fill_rect(info, x + 8, y + 48, 8, 8, (80, 200, 160));
         }
-        if kind == 3 {
+        if kind == 4 {
+            draw_calculator(info, x, y, w, h);
+        } else if kind == 3 {
             draw_text(info, x + 24, y + 90, 2, b"Everest OS v1.0", FILE_TEXT);
             draw_text(info, x + 24, y + 140, 2, b"Created by Amit Pathak", FILE_TEXT);
         } else if kind == 1 {
@@ -304,20 +316,130 @@ fn draw_app_windows(info: &BootInfo) {
             draw_text(info, x + 24, y + 124, 1, b"Ready for commands", UI_WHITE);
         } else {
             draw_text(info, x + 24, y + 80, 2, b"FILE MANAGER", FILE_TEXT);
-            draw_text(info, x + 24, y + 124, 1, b"Browse your files", UI_WHITE);
+            draw_text(info, x + 24, y + 124, 1, b"Browse your files", FILE_TEXT);
         }
     }
+}
+
+fn draw_calculator(info: &BootInfo, x: usize, y: usize, w: usize, _h: usize) {
+    // Tokyo Night display panel and crisp button grid.
+    fill_rect(info, x + 18, y + 54, w.saturating_sub(36), 42, (16, 18, 27));
+    draw_border(info, x + 18, y + 54, w.saturating_sub(36), 42, 1, (65, 72, 97));
+    let len = CALCULATOR_LEN.load(Ordering::Relaxed).min(CALCULATOR_CAPACITY);
+    if len == 0 {
+        draw_text(info, x + 30, y + 68, 2, b"0", FILE_TEXT);
+    } else {
+        let mut display = [0u8; CALCULATOR_CAPACITY];
+        for (i, byte) in display.iter_mut().enumerate().take(len) {
+            *byte = CALCULATOR_DISPLAY[i].load(Ordering::Relaxed);
+        }
+        draw_text(info, x + 30, y + 68, 2, &display[..len], UI_WHITE);
+    }
+    if len > 0 {
+        // Stable indicator that a mouse click changed the calculator display.
+        fill_rect(info, x + w.saturating_sub(30), y + 62, 8, 8, (80, 200, 160));
+    }
+    if CALCULATOR_RESULT_OK.load(Ordering::Relaxed) != 0 {
+        fill_rect(info, x + w.saturating_sub(44), y + 62, 8, 8, (122, 162, 247));
+    }
+    let keys: [[u8; 4]; 4] = [
+        [b'7', b'8', b'9', b'/'],
+        [b'4', b'5', b'6', b'*'],
+        [b'1', b'2', b'3', b'-'],
+        [b'C', b'0', b'=', b'+'],
+    ];
+    let button_w = 108usize;
+    let button_h = 36usize;
+    for (row, line) in keys.iter().enumerate() {
+        for (col, key) in line.iter().enumerate() {
+            let bx = x + 20 + col * 118;
+            let by = y + 108 + row * 42;
+            let operator = matches!(*key, b'/' | b'*' | b'-' | b'+' | b'=');
+            let bg = if operator { (49, 57, 82) } else if *key == b'C' { (61, 43, 61) } else { (31, 34, 48) };
+            let edge = if operator { (122, 162, 247) } else if *key == b'C' { (247, 118, 142) } else { (65, 72, 97) };
+            fill_rect(info, bx, by, button_w, button_h, bg);
+            draw_border(info, bx, by, button_w, button_h, 1, edge);
+            let label = [*key];
+            draw_text(info, bx + 50, by + 13, 1, &label, if operator { (122, 162, 247) } else { FILE_TEXT });
+        }
+    }
+}
+
+fn handle_calculator_click(info: &BootInfo, x: usize, y: usize) -> bool {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    // Test from front to back so overlapping app windows route to the top window.
+    for i in (0..count).rev() {
+        if APP_WINDOW_KIND[i].load(Ordering::Relaxed) != 4 { continue; }
+        let wx = APP_WINDOW_X[i].load(Ordering::Relaxed);
+        let wy = APP_WINDOW_Y[i].load(Ordering::Relaxed);
+        if x < wx + 20 || x >= wx + 20 + 4 * 118 - 10 || y < wy + 108 || y >= wy + 108 + 4 * 42 - 6 {
+            continue;
+        }
+        let col = (x - (wx + 20)) / 118;
+        let row = (y - (wy + 108)) / 42;
+        if col >= 4 || row >= 4 { return false; }
+        let key = [[b'7',b'8',b'9',b'/'],[b'4',b'5',b'6',b'*'],[b'1',b'2',b'3',b'-'],[b'C',b'0',b'=',b'+']][row][col];
+        if key == b'C' {
+            for slot in CALCULATOR_DISPLAY.iter() { slot.store(0, Ordering::Relaxed); }
+            CALCULATOR_LEN.store(0, Ordering::Relaxed);
+            CALCULATOR_RESULT_OK.store(0, Ordering::Relaxed);
+        } else if key == b'=' {
+            let len = CALCULATOR_LEN.load(Ordering::Relaxed).min(CALCULATOR_CAPACITY);
+            let mut bytes = [0u8; CALCULATOR_CAPACITY];
+            for (j, byte) in bytes.iter_mut().enumerate().take(len) { *byte = CALCULATOR_DISPLAY[j].load(Ordering::Relaxed); }
+            if let Some(op) = bytes[..len].iter().position(|b| *b == b'+') {
+                let left = parse_calculator_number(&bytes[..op]);
+                let right = parse_calculator_number(&bytes[op + 1..len]);
+                if let (Some(a), Some(b)) = (left, right) {
+                    let sum = a.saturating_add(b);
+                    let mut out = [0u8; CALCULATOR_CAPACITY];
+                    let mut n = 0usize;
+                    let mut value = sum;
+                    if value == 0 { out[n] = b'0'; n += 1; }
+                    while value > 0 && n < CALCULATOR_CAPACITY {
+                        out[n] = b'0' + (value % 10) as u8;
+                        value /= 10;
+                        n += 1;
+                    }
+                    for j in 0..n { CALCULATOR_DISPLAY[j].store(out[n - 1 - j], Ordering::Relaxed); }
+                    CALCULATOR_LEN.store(n, Ordering::Relaxed);
+                    CALCULATOR_RESULT_OK.store(1, Ordering::Relaxed);
+                }
+            }
+        } else {
+            CALCULATOR_RESULT_OK.store(0, Ordering::Relaxed);
+            let len = CALCULATOR_LEN.load(Ordering::Relaxed).min(CALCULATOR_CAPACITY);
+            if len < CALCULATOR_CAPACITY {
+                CALCULATOR_DISPLAY[len].store(key, Ordering::Relaxed);
+                CALCULATOR_LEN.store(len + 1, Ordering::Relaxed);
+            }
+        }
+        draw_desktop(info);
+        return true;
+    }
+    false
+}
+
+fn parse_calculator_number(bytes: &[u8]) -> Option<usize> {
+    if bytes.is_empty() { return None; }
+    let mut value = 0usize;
+    for byte in bytes {
+        if !byte.is_ascii_digit() { return None; }
+        value = value.checked_mul(10)?.checked_add((byte - b'0') as usize)?;
+    }
+    Some(value)
 }
 
 fn draw_start_menu(info: &BootInfo) {
     if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { return; }
     let y = info.height.saturating_sub(36);
-    fill_rect(info, 12, y.saturating_sub(164), 220, 160, TITLEBAR_BG);
-    draw_border(info, 12, y.saturating_sub(164), 220, 160, 2, FILE_SELECTION);
-    draw_text(info, 28, y.saturating_sub(146), 2, b"START MENU", UI_WHITE);
-    draw_text(info, 32, y.saturating_sub(112), 2, b"TERMINAL", FILE_TEXT);
-    draw_text(info, 32, y.saturating_sub(78), 2, b"FILE MANAGER", FILE_TEXT);
-    draw_text(info, 32, y.saturating_sub(44), 2, b"SETTINGS", FILE_TEXT);
+    fill_rect(info, 12, y.saturating_sub(198), 220, 194, TITLEBAR_BG);
+    draw_border(info, 12, y.saturating_sub(198), 220, 194, 2, FILE_SELECTION);
+    draw_text(info, 28, y.saturating_sub(180), 2, b"START MENU", UI_WHITE);
+    draw_text(info, 32, y.saturating_sub(146), 2, b"TERMINAL", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(112), 2, b"FILE MANAGER", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(78), 2, b"SETTINGS", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(44), 2, b"CALCULATOR", (122, 162, 247));
 }
 
 
@@ -464,9 +586,11 @@ fn process_mouse_events(info: &BootInfo) -> bool {
             let taskbar_y = info.height.saturating_sub(36);
             if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
-            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(160) && y < taskbar_y {
-                let row = y.saturating_sub(taskbar_y.saturating_sub(130)) / 34;
-                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), _ => spawn_app_window(info, 3) }
+            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(194) && y < taskbar_y {
+                let row = y.saturating_sub(taskbar_y.saturating_sub(164)) / 34;
+                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), _ => spawn_app_window(info, 4) }
+            } else if handle_calculator_click(info, x, y) {
+                // Calculator button consumed the click.
             } else if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
                 DRAG_OFFSET_X.store(x.saturating_sub(wx), Ordering::Relaxed);
                 DRAG_OFFSET_Y.store(y.saturating_sub(wy), Ordering::Relaxed);
@@ -930,6 +1054,11 @@ fn glyph_rows(character: u8) -> [u8; 7] {
         b'y' => [0, 0, 17, 17, 15, 1, 14],
         b'z' => [0, 0, 31, 2, 4, 8, 31],
         b':' => [0, 4, 4, 0, 4, 4, 0],
+        b'+' => [0, 4, 4, 31, 4, 4, 0],
+        b'-' => [0, 0, 0, 31, 0, 0, 0],
+        b'*' => [0, 17, 10, 4, 10, 17, 0],
+        b'/' => [1, 2, 2, 4, 8, 8, 16],
+        b'=' => [0, 31, 0, 31, 0, 0, 0],
         b' ' => [0, 0, 0, 0, 0, 0, 0],
         _ => [0, 0, 0, 0, 0, 0, 0],
     }
