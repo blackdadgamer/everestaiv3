@@ -335,7 +335,11 @@ run_qemu() {
             sleep 0.7
             printf 'screendump %s\n' "$TMP_DIR/editor-instances-tiled.ppm"
             sleep 1
-            cp "$TMP_DIR/editor-instances-tiled.ppm" "$ROOT_DIR/dist/qemu-debug-editor-instances-tiled.ppm"
+        } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
+        cp "$TMP_DIR/editor-instances-tiled.ppm" "$ROOT_DIR/dist/qemu-debug-editor-instances-tiled.ppm"
+        if [ "$boot_number" = "2" ]; then
+            : # Preserve the complete screenshot for the instance-tiling assertion.
+        fi
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
