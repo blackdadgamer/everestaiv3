@@ -6,7 +6,7 @@ from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result|--editor-window|--editor-saved|--window-tiles]", file=sys.stderr)
+        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result|--editor-window|--editor-saved|--window-tiles|--editor-tiles]", file=sys.stderr)
         return 2
     path = Path(sys.argv[1])
     data = path.read_bytes()
@@ -74,6 +74,17 @@ def main() -> int:
             print("Tiled windows did not span both screen halves.", file=sys.stderr)
             return 1
         print("Left and right snapped app windows verified simultaneously.")
+        return 0
+    if "--editor-tiles" in sys.argv:
+        border = (187, 154, 247)
+        instance = (80, 200, 160)
+        if not is_color(pixel(8, 52), instance) or not is_color(pixel(width // 2 + 8, 52), instance):
+            print("Both Text Editor instance markers were not visible simultaneously.", file=sys.stderr)
+            return 1
+        if not is_color(pixel(0, height // 3), border) or not is_color(pixel(width // 2, height // 3), border):
+            print("Two Text Editor windows did not occupy the left and right halves.", file=sys.stderr)
+            return 1
+        print("Two distinct Text Editor instances verified on screen simultaneously.")
         return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.
