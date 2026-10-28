@@ -251,6 +251,9 @@ static APP_WINDOW_KIND: [AtomicU8; 8] = [const { AtomicU8::new(0) }; 8];
 static APP_WINDOW_X: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static APP_WINDOW_Y: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static APP_WINDOW_Z: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+static APP_WINDOW_W: [AtomicUsize; 8] = [const { AtomicUsize::new(520) }; 8];
+static APP_WINDOW_H: [AtomicUsize; 8] = [const { AtomicUsize::new(300) }; 8];
+static APP_DRAG_INDEX: AtomicUsize = AtomicUsize::new(usize::MAX);
 static APP_Z_CLOCK: AtomicUsize = AtomicUsize::new(1);
 const CALCULATOR_CAPACITY: usize = 24;
 static CALCULATOR_DISPLAY: [AtomicU8; CALCULATOR_CAPACITY] =
@@ -270,13 +273,18 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
         oldest
     };
     APP_WINDOW_KIND[slot].store(kind, Ordering::Relaxed);
-    let (window_x, window_y) = if kind == 4 || kind == 5 {
+    let editor_already_open = (0..count).any(|i| APP_WINDOW_KIND[i].load(Ordering::Relaxed) == 5);
+    let (window_x, window_y) = if kind == 4 && editor_already_open {
+        (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
+    } else if kind == 4 || kind == 5 {
         (info.width.saturating_sub(520) / 2, info.height.saturating_sub(336) / 2)
     } else {
         (180 + (slot * 44), 100 + (slot * 36))
     };
     APP_WINDOW_X[slot].store(window_x, Ordering::Relaxed);
     APP_WINDOW_Y[slot].store(window_y, Ordering::Relaxed);
+    APP_WINDOW_W[slot].store(520, Ordering::Relaxed);
+    APP_WINDOW_H[slot].store(300, Ordering::Relaxed);
     APP_WINDOW_Z[slot].store(APP_Z_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
     if count < 8 { APP_WINDOW_COUNT.store(count + 1, Ordering::Relaxed); }
     START_MENU_OPEN.store(0, Ordering::Relaxed);
@@ -298,8 +306,8 @@ fn draw_app_windows(info: &BootInfo) {
         let kind = APP_WINDOW_KIND[i].load(Ordering::Relaxed);
         let x = APP_WINDOW_X[i].load(Ordering::Relaxed);
         let y = APP_WINDOW_Y[i].load(Ordering::Relaxed);
-        let w = 520usize.min(info.width.saturating_sub(x));
-        let h = 300usize.min(info.height.saturating_sub(y + 36));
+        let w = APP_WINDOW_W[i].load(Ordering::Relaxed).min(info.width.saturating_sub(x));
+        let h = APP_WINDOW_H[i].load(Ordering::Relaxed).min(info.height.saturating_sub(y + 36));
         if w < 180 || h < 100 { continue; }
         draw_border(info, x, y, w, h, 2, FILE_SELECTION);
         fill_rect(info, x + 2, y + 2, w - 4, h - 4, WINDOW_BG);
@@ -663,25 +671,44 @@ fn process_mouse_events(info: &BootInfo) -> bool {
             let taskbar_y = info.height.saturating_sub(36);
             if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
-            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(194) && y < taskbar_y {
+            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(232) && y < taskbar_y {
                 let row = y.saturating_sub(taskbar_y.saturating_sub(164)) / 34;
                 match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), 3 => spawn_app_window(info, 4), _ => spawn_app_window(info, 5) }
             } else if handle_text_editor_click(info, x, y) {
                 // Text Editor Save button consumed the click.
             } else if handle_calculator_click(info, x, y) {
                 // Calculator button consumed the click.
-            } else if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
-                DRAG_OFFSET_X.store(x.saturating_sub(wx), Ordering::Relaxed);
-                DRAG_OFFSET_Y.store(y.saturating_sub(wy), Ordering::Relaxed);
-                DRAGGING_WINDOW.store(1, Ordering::Relaxed);
-            } else if x >= wx + 20 && x < wx + window_width.saturating_sub(20)
-                && y >= wy + 108 && y < wy + 108 + 6 * 38 {
-                let row = y.saturating_sub(wy + 108) / 38;
-                let count = filesystem::open_volume().ok().map(|volume| {
-                    let mut names = [[0u8; 11]; 32]; let mut count = 0usize;
-                    let _ = volume.list_root_files(&mut names, &mut count); count
-                }).unwrap_or(0);
-                FILE_SELECTION_INDEX.store(row.min(count.saturating_sub(1)), Ordering::Relaxed);
+            } else {
+                let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+                let mut hit = None;
+                let mut top_z = 0usize;
+                for i in 0..count {
+                    let ax = APP_WINDOW_X[i].load(Ordering::Relaxed);
+                    let ay = APP_WINDOW_Y[i].load(Ordering::Relaxed);
+                    let aw = APP_WINDOW_W[i].load(Ordering::Relaxed);
+                    if x >= ax && x < ax + aw && y >= ay && y < ay + 44 {
+                        let z = APP_WINDOW_Z[i].load(Ordering::Relaxed);
+                        if hit.is_none() || z >= top_z { hit = Some(i); top_z = z; }
+                    }
+                }
+                if let Some(i) = hit {
+                    APP_DRAG_INDEX.store(i, Ordering::Relaxed);
+                    DRAG_OFFSET_X.store(x.saturating_sub(APP_WINDOW_X[i].load(Ordering::Relaxed)), Ordering::Relaxed);
+                    DRAG_OFFSET_Y.store(y.saturating_sub(APP_WINDOW_Y[i].load(Ordering::Relaxed)), Ordering::Relaxed);
+                    APP_WINDOW_Z[i].store(APP_Z_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+                } else if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
+                    DRAG_OFFSET_X.store(x.saturating_sub(wx), Ordering::Relaxed);
+                    DRAG_OFFSET_Y.store(y.saturating_sub(wy), Ordering::Relaxed);
+                    DRAGGING_WINDOW.store(1, Ordering::Relaxed);
+                } else if x >= wx + 20 && x < wx + window_width.saturating_sub(20)
+                    && y >= wy + 108 && y < wy + 108 + 6 * 38 {
+                    let row = y.saturating_sub(wy + 108) / 38;
+                    let count = filesystem::open_volume().ok().map(|volume| {
+                        let mut names = [[0u8; 11]; 32]; let mut count = 0usize;
+                        let _ = volume.list_root_files(&mut names, &mut count); count
+                    }).unwrap_or(0);
+                    FILE_SELECTION_INDEX.store(row.min(count.saturating_sub(1)), Ordering::Relaxed);
+                }
             }
         }
         if left_now && !left_before {
@@ -694,13 +721,45 @@ fn process_mouse_events(info: &BootInfo) -> bool {
                 }
             }
         }
-        if left_now && DRAGGING_WINDOW.load(Ordering::Relaxed) != 0 {
+        let app_drag = APP_DRAG_INDEX.load(Ordering::Relaxed);
+        if left_now && app_drag < APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8) {
+            let nx = x.saturating_sub(DRAG_OFFSET_X.load(Ordering::Relaxed));
+            let ny = y.saturating_sub(DRAG_OFFSET_Y.load(Ordering::Relaxed));
+            APP_WINDOW_X[app_drag].store(nx.min(info.width.saturating_sub(APP_WINDOW_W[app_drag].load(Ordering::Relaxed))), Ordering::Relaxed);
+            APP_WINDOW_Y[app_drag].store(ny.min(info.height.saturating_sub(APP_WINDOW_H[app_drag].load(Ordering::Relaxed) + 36)), Ordering::Relaxed);
+        } else if left_now && DRAGGING_WINDOW.load(Ordering::Relaxed) != 0 {
             let nx = x.saturating_sub(DRAG_OFFSET_X.load(Ordering::Relaxed)).min(info.width.saturating_sub(window_width));
             let ny = y.saturating_sub(DRAG_OFFSET_Y.load(Ordering::Relaxed)).min(info.height.saturating_sub(window_height + 36));
             WINDOW_X.store(nx, Ordering::Relaxed);
             WINDOW_Y.store(ny, Ordering::Relaxed);
         }
-        if !left_now { DRAGGING_WINDOW.store(0, Ordering::Relaxed); }
+        if !left_now {
+            DRAGGING_WINDOW.store(0, Ordering::Relaxed);
+            if app_drag < APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8) {
+                let edge = 18usize;
+                let aw = APP_WINDOW_W[app_drag].load(Ordering::Relaxed);
+                let ah = APP_WINDOW_H[app_drag].load(Ordering::Relaxed);
+                if x <= edge {
+                    APP_WINDOW_X[app_drag].store(0, Ordering::Relaxed);
+                    APP_WINDOW_Y[app_drag].store(0, Ordering::Relaxed);
+                    APP_WINDOW_W[app_drag].store(info.width / 2, Ordering::Relaxed);
+                    APP_WINDOW_H[app_drag].store(info.height.saturating_sub(36), Ordering::Relaxed);
+                } else if x >= info.width.saturating_sub(edge) {
+                    APP_WINDOW_X[app_drag].store(info.width / 2, Ordering::Relaxed);
+                    APP_WINDOW_Y[app_drag].store(0, Ordering::Relaxed);
+                    APP_WINDOW_W[app_drag].store(info.width.saturating_sub(info.width / 2), Ordering::Relaxed);
+                    APP_WINDOW_H[app_drag].store(info.height.saturating_sub(36), Ordering::Relaxed);
+                } else if y <= edge {
+                    APP_WINDOW_X[app_drag].store(0, Ordering::Relaxed);
+                    APP_WINDOW_Y[app_drag].store(0, Ordering::Relaxed);
+                    APP_WINDOW_W[app_drag].store(info.width, Ordering::Relaxed);
+                    APP_WINDOW_H[app_drag].store(info.height.saturating_sub(36), Ordering::Relaxed);
+                } else {
+                    let _ = (aw, ah);
+                }
+                APP_DRAG_INDEX.store(usize::MAX, Ordering::Relaxed);
+            }
+        }
         changed = true;
     }
     if changed { draw_desktop(info); }
