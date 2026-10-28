@@ -324,6 +324,8 @@ if ! cmp -s "$TMP_DIR/expected-config.txt" "$TMP_DIR/CONFIG.TXT"; then
     exit 1
 fi
 
+# Reboot with the exact same writable data-disk image and no onboarding input.
+run_qemu 2
 # Verify the Text Editor persisted the exact typed bytes to the FAT32 disk.
 if ! mtype -i "$DATA_IMAGE" ::NOTES.TXT > "$TMP_DIR/NOTES.TXT"; then
     printf 'NOTES.TXT was not written by the Text Editor.\n' >&2
@@ -337,6 +339,4 @@ if ! cmp -s "$TMP_DIR/expected-notes.txt" "$TMP_DIR/NOTES.TXT"; then
     exit 1
 fi
 
-# Reboot with the exact same writable data-disk image and no onboarding input.
-run_qemu 2
 printf 'Terminal USER.TXT and Text Editor NOTES.TXT writes, persistent configuration, keyboard input, mouse cursor and titlebar drag passed.\n'
