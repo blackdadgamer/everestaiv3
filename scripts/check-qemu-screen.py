@@ -83,8 +83,8 @@ def main() -> int:
         if left_markers == 0 or right_markers == 0:
             print(f"Text Editor instance markers missing by half: left={left_markers}, right={right_markers}.", file=sys.stderr)
             return 1
-        if not is_color(pixel(0, height // 3), border) or not is_color(pixel(width // 2, height // 3), border):
-            print(f"Two Text Editor windows did not occupy both halves (markers left={left_markers}, right={right_markers}).", file=sys.stderr)
+        if not is_color(pixel(width // 4, 0), border) or not is_color(pixel(3 * width // 4, 0), border):
+            print(f"Two Text Editor windows did not span both halves (markers left={left_markers}, right={right_markers}).", file=sys.stderr)
             return 1
         print(f"Two Text Editor instances verified simultaneously (markers left={left_markers}, right={right_markers}).")
         return 0
