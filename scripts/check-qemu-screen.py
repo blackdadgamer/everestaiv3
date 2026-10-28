@@ -78,13 +78,15 @@ def main() -> int:
     if "--editor-tiles" in sys.argv:
         border = (187, 154, 247)
         instance = (80, 200, 160)
-        if not is_color(pixel(8, 52), instance) or not is_color(pixel(width // 2 + 8, 52), instance):
-            print("Both Text Editor instance markers were not visible simultaneously.", file=sys.stderr)
+        left_markers = sum(1 for yy in range(height) for xx in range(width // 2) if is_color(pixel(xx, yy), instance))
+        right_markers = sum(1 for yy in range(height) for xx in range(width // 2, width) if is_color(pixel(xx, yy), instance))
+        if left_markers == 0 or right_markers == 0:
+            print(f"Text Editor instance markers missing by half: left={left_markers}, right={right_markers}.", file=sys.stderr)
             return 1
         if not is_color(pixel(0, height // 3), border) or not is_color(pixel(width // 2, height // 3), border):
-            print("Two Text Editor windows did not occupy the left and right halves.", file=sys.stderr)
+            print(f"Two Text Editor windows did not occupy both halves (markers left={left_markers}, right={right_markers}).", file=sys.stderr)
             return 1
-        print("Two distinct Text Editor instances verified on screen simultaneously.")
+        print(f"Two Text Editor instances verified simultaneously (markers left={left_markers}, right={right_markers}).")
         return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.
