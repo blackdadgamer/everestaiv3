@@ -95,7 +95,7 @@ run_qemu() {
     sleep 8
     if ! kill -0 "$QEMU_PID" >/dev/null 2>&1; then
         cat "$QEMU_LOG" >&2
-        printf "QEMU exited before accepting monitor commands on boot %s.\\n" "$boot_number" >&2
+        printf "QEMU exited before accepting monitor commands on boot %s.\n" "$boot_number" >&2
         exit 1
     fi
     if [ "$boot_number" = "1" ]; then
@@ -333,11 +333,11 @@ run_qemu() {
             sleep 1
             sleep 0.5
             # Open Terminal and a fresh Text Editor using only keyboard shortcuts.
-            printf 'sendkey alt-t\\n'
+            printf 'sendkey alt-t\n'
             sleep 0.6
-            printf 'sendkey alt-e\\n'
+            printf 'sendkey alt-e\n'
             sleep 0.8
-            printf 'screendump %s\\n' "$TMP_DIR/global-shortcuts.ppm"
+            printf 'screendump %s\n' "$TMP_DIR/global-shortcuts.ppm"
             sleep 0.3
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
         cp "$TMP_DIR/editor-instances-tiled.ppm" "$ROOT_DIR/dist/qemu-debug-editor-instances-tiled.ppm"
