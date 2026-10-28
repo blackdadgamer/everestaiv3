@@ -6,7 +6,7 @@ from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result|--editor-window|--editor-saved|--window-tiles]", file=sys.stderr)
+        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result|--editor-window|--editor-saved|--window-tiles|--editor-tiles]", file=sys.stderr)
         return 2
     path = Path(sys.argv[1])
     data = path.read_bytes()
@@ -27,7 +27,7 @@ def main() -> int:
     if width < 800 or height < 600:
         print(f"Framebuffer too small: {width}x{height}", file=sys.stderr)
         return 1
-    if "--window-tiles" not in sys.argv and not is_color(pixel(5, 5), (26, 27, 38)):
+    if "--window-tiles" not in sys.argv and "--editor-tiles" not in sys.argv and not is_color(pixel(5, 5), (26, 27, 38)):
         print("Tokyo Night desktop background mismatch.", file=sys.stderr)
         return 1
     if "--start-menu" in sys.argv:
@@ -74,6 +74,19 @@ def main() -> int:
             print("Tiled windows did not span both screen halves.", file=sys.stderr)
             return 1
         print("Left and right snapped app windows verified simultaneously.")
+        return 0
+    if "--editor-tiles" in sys.argv:
+        border = (187, 154, 247)
+        instance = (80, 200, 160)
+        left_markers = sum(1 for yy in range(height) for xx in range(width // 2) if is_color(pixel(xx, yy), instance))
+        right_markers = sum(1 for yy in range(height) for xx in range(width // 2, width) if is_color(pixel(xx, yy), instance))
+        if left_markers == 0 or right_markers == 0:
+            print(f"Text Editor instance markers missing by half: left={left_markers}, right={right_markers}.", file=sys.stderr)
+            return 1
+        if not is_color(pixel(width // 4, 0), border) or not is_color(pixel(3 * width // 4, 0), border):
+            print(f"Two Text Editor windows did not span both halves (markers left={left_markers}, right={right_markers}).", file=sys.stderr)
+            return 1
+        print(f"Two Text Editor instances verified simultaneously (markers left={left_markers}, right={right_markers}).")
         return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.

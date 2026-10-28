@@ -276,7 +276,7 @@ run_qemu() {
             printf 'mouse_button 0\n'
             sleep 0.5
             printf 'screendump %s\n' "$TMP_DIR/editor-saved.ppm"
-            # Open Calculator alongside the Editor, then tile both apps by dragging their title bars.
+            # Return to Start and select a second Text Editor instance.
             for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38; do
                 printf 'mouse_move -20 0\n'
                 sleep 0.03
@@ -288,35 +288,24 @@ run_qemu() {
             printf 'mouse_button 1\n'
             sleep 0.2
             printf 'mouse_button 0\n'
-            sleep 0.3
-            for step in 1 2 3; do
+            sleep 0.4
+            # Text Editor is one row below Calculator in the Start menu.
+            for step in 1 2; do
                 printf 'mouse_move 0 -20\n'
                 sleep 0.05
             done
             printf 'mouse_button 1\n'
             sleep 0.2
             printf 'mouse_button 0\n'
-            sleep 0.6
-            # Editor title bar: drag to the left edge and release to snap to the left half.
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do
+            sleep 0.7
+            printf 'screendump %s\n' "$TMP_DIR/two-editors-open.ppm"
+            # Move to the second Editor title bar and snap that instance to the right half.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34; do
                 printf 'mouse_move 20 0\n'
                 sleep 0.03
             done
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23; do
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do
                 printf 'mouse_move 0 -20\n'
-                sleep 0.03
-            done
-            printf 'mouse_button 1\n'
-            sleep 0.2
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-                printf 'mouse_move -20 0\n'
-                sleep 0.03
-            done
-            printf 'mouse_button 0\n'
-            sleep 0.6
-            # Calculator title bar: drag to the right edge and release to snap to the right half.
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36; do
-                printf 'mouse_move 20 0\n'
                 sleep 0.03
             done
             printf 'mouse_button 1\n'
@@ -326,9 +315,24 @@ run_qemu() {
                 sleep 0.03
             done
             printf 'mouse_button 0\n'
+            sleep 0.6
+            # The first Editor remains exposed on the left side of the second window's title bar.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38; do
+                printf 'mouse_move -20 0\n'
+                sleep 0.03
+            done
+            printf 'mouse_button 1\n'
+            sleep 0.2
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
+                printf 'mouse_move -20 0\n'
+                sleep 0.03
+            done
+            printf 'mouse_button 0\n'
             sleep 0.7
-            printf 'screendump %s\n' "$TMP_DIR/snapped-windows.ppm"
+            printf 'screendump %s\n' "$TMP_DIR/editor-instances-tiled.ppm"
+            sleep 1
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
+        cp "$TMP_DIR/editor-instances-tiled.ppm" "$ROOT_DIR/dist/qemu-debug-editor-instances-tiled.ppm"
     fi
 
     if [ "$boot_number" = "2" ]; then
@@ -337,13 +341,13 @@ run_qemu() {
         python3 scripts/check-qemu-screen.py "$TMP_DIR/calculator-result.ppm" --calculator-result
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-window.ppm" --editor-window
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-saved.ppm" --editor-saved
-        python3 scripts/check-qemu-screen.py "$TMP_DIR/snapped-windows.ppm" --window-tiles
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-instances-tiled.ppm" --editor-tiles
     fi
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--window-tiles"); then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--editor-tiles"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi
