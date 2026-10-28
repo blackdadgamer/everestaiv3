@@ -79,19 +79,12 @@ def main() -> int:
         instance = (80, 200, 160)
         # App slots are appended in order. Accept the marker positions for
         # the terminal slot while requiring the fresh editor's centered/right offset.
-        terminal_positions = [(180 + slot * 44 + 8, 100 + slot * 36 + 48) for slot in range(8)]
-        terminal_visible = any(
-            x < width and y < height and is_color(pixel(x, y), instance)
-            for x, y in terminal_positions
-        )
-        editor_positions = [
-            ((width - 520) // 2 + 8, (height - 336) // 2 + 48),
-            (width // 2 + 48, (height - 336) // 2 + 48),
-        ]
-        editor_visible = any(
-            x < width and y < height and is_color(pixel(x, y), instance)
-            for x, y in editor_positions
-        )
+        # Three pre-existing app windows occupy slots 0-2; Alt+T creates
+        # the Terminal in slot 3 and Alt+E creates an Editor in slot 4.
+        terminal_x, terminal_y = 180 + 3 * 44 + 8, 100 + 3 * 36 + 48
+        editor_x, editor_y = width // 2 + 40 + 8, (height - 336) // 2 + 48
+        terminal_visible = is_color(pixel(terminal_x, terminal_y), instance)
+        editor_visible = is_color(pixel(editor_x, editor_y), instance)
         if not terminal_visible or not editor_visible:
             print(f"Alt+T/Alt+E app markers missing: terminal={terminal_visible}, editor={editor_visible}.", file=sys.stderr)
             return 1
