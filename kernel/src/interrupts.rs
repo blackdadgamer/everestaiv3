@@ -6,6 +6,7 @@ static TICKS: AtomicU64 = AtomicU64::new(0);
 static LAST_KEY: AtomicU8 = AtomicU8::new(0);
 static KEY_COUNT: AtomicU64 = AtomicU64::new(0);
 static SHIFT_PRESSED: AtomicU8 = AtomicU8::new(0);
+static ALT_PRESSED: AtomicU8 = AtomicU8::new(0);
 
 // Single-producer (IRQ) / single-consumer (kernel loop) keyboard event ring.
 const KEY_QUEUE_CAPACITY: usize = 64;
@@ -238,12 +239,30 @@ pub unsafe extern "C" fn everest_irq_dispatch(vector:u64){
                 match code {
                     0x2A | 0x36 => SHIFT_PRESSED.store(1, Ordering::Relaxed),
                     0xAA | 0xB6 => SHIFT_PRESSED.store(0, Ordering::Relaxed),
+                    0x38 => ALT_PRESSED.store(1, Ordering::Relaxed),
+                    0xB8 => ALT_PRESSED.store(0, Ordering::Relaxed),
                     _ if code & 0x80 == 0 => {
-                        let mut ch=translate(code);
-                        if SHIFT_PRESSED.load(Ordering::Relaxed) != 0 && ch.is_ascii_lowercase() {
-                            ch=ch.to_ascii_uppercase();
+                        if ALT_PRESSED.load(Ordering::Relaxed) != 0 {
+                            let shortcut = match code {
+                                0x14 => 0xF1, // Alt+T: Terminal
+                                0x12 => 0xF2, // Alt+E: Text Editor
+                                0x2E => 0xF3, // Alt+C: Calculator
+                                0x11 => 0xF4, // Alt+W: close window
+                                0x0F => 0xF5, // Alt+Tab: cycle focus
+                                _ => 0,
+                            };
+                            if shortcut != 0 {
+                                LAST_KEY.store(shortcut, Ordering::Relaxed);
+                                KEY_COUNT.fetch_add(1, Ordering::Relaxed);
+                                enqueue_key(shortcut);
+                            }
+                        } else {
+                            let mut ch=translate(code);
+                            if SHIFT_PRESSED.load(Ordering::Relaxed) != 0 && ch.is_ascii_lowercase() {
+                                ch=ch.to_ascii_uppercase();
+                            }
+                            if ch!=0 {LAST_KEY.store(ch,Ordering::Relaxed);KEY_COUNT.fetch_add(1,Ordering::Relaxed);enqueue_key(ch);}
                         }
-                        if ch!=0 {LAST_KEY.store(ch,Ordering::Relaxed);KEY_COUNT.fetch_add(1,Ordering::Relaxed);enqueue_key(ch);}
                     }
                     _ => {}
                 }
