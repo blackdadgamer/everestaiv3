@@ -278,6 +278,14 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
     APP_WINDOW_KIND[slot].store(kind, Ordering::Relaxed);
     APP_WINDOW_ID[slot].store(APP_ID_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
     ACTIVE_APP_WINDOW.store(slot, Ordering::Relaxed);
+    if kind == 5 {
+        let base = slot * EDITOR_CAPACITY;
+        for byte in &EDITOR_BUFFER[base..base + EDITOR_CAPACITY] {
+            byte.store(0, Ordering::Relaxed);
+        }
+        EDITOR_LEN[slot].store(0, Ordering::Relaxed);
+        EDITOR_SAVED[slot].store(0, Ordering::Relaxed);
+    }
     let editor_already_open = (0..count).any(|i| APP_WINDOW_KIND[i].load(Ordering::Relaxed) == 5);
     let (window_x, window_y) = if kind == 5 && editor_already_open {
         (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
