@@ -336,6 +336,7 @@ run_qemu() {
             printf 'mouse_button 0\n'
             sleep 0.7
             printf 'screendump %s\n' "$TMP_DIR/editor-instances-tiled.ppm"
+            cp "$TMP_DIR/editor-instances-tiled.ppm" "$ROOT_DIR/dist/qemu-debug-editor-instances-tiled.ppm"
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
