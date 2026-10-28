@@ -276,21 +276,15 @@ run_qemu() {
             printf 'mouse_button 0\n'
             sleep 0.5
             printf 'screendump %s\n' "$TMP_DIR/editor-saved.ppm"
-            # Open a second Text Editor instance from Start.
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+            # Return to Start and select a second Text Editor instance.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38; do
                 printf 'mouse_move -20 0\n'
                 sleep 0.03
             done
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
                 printf 'mouse_move 0 20\n'
                 sleep 0.03
             done
-            for step in 1 2 3; do
-                printf 'mouse_move 20 0\n'
-                sleep 0.05
-            done
-            printf 'mouse_move 0 -20\n'
-            sleep 0.2
             printf 'mouse_button 1\n'
             sleep 0.2
             printf 'mouse_button 0\n'
