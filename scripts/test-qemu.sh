@@ -164,7 +164,8 @@ run_qemu() {
             sleep 0.5
             printf 'screendump %s\n' "$TMP_DIR/start-menu.ppm"
             sleep 0.3
-            for step in 1 2 3 4 5 6 7 8; do
+            # Select Calculator (fourth launcher row).
+            for step in 1 2 3 4; do
                 printf 'mouse_move 0 -20\n'
                 sleep 0.1
             done
@@ -173,18 +174,71 @@ run_qemu() {
             printf 'mouse_button 1\n'
             sleep 0.3
             printf 'mouse_button 0\n'
-            sleep 0.5
+            sleep 0.7
+            printf 'screendump %s\n' "$TMP_DIR/calculator-window.ppm"
+            # Click 7, +, 2, = in the centered calculator grid.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13; do
+                printf 'mouse_move 20 0\n'
+                sleep 0.05
+            done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
+                printf 'mouse_move 0 -20\n'
+                sleep 0.05
+            done
+            printf 'mouse_button 1\n'
+            sleep 0.2
+            printf 'mouse_button 0\n'
+            sleep 0.2
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
+                printf 'mouse_move 20 0\n'
+                sleep 0.05
+            done
+            for step in 1 2 3 4 5 6; do
+                printf 'mouse_move 0 20\n'
+                sleep 0.05
+            done
+            printf 'mouse_button 1\n'
+            sleep 0.2
+            printf 'mouse_button 0\n'
+            sleep 0.2
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12; do
+                printf 'mouse_move -20 0\n'
+                sleep 0.05
+            done
+            for step in 1 2; do
+                printf 'mouse_move 0 -20\n'
+                sleep 0.05
+            done
+            printf 'mouse_button 1\n'
+            sleep 0.2
+            printf 'mouse_button 0\n'
+            sleep 0.2
+            for step in 1 2 3 4 5 6; do
+                printf 'mouse_move 20 0\n'
+                sleep 0.05
+            done
+            for step in 1 2; do
+                printf 'mouse_move 0 20\n'
+                sleep 0.05
+            done
+            printf 'mouse_button 1\n'
+            sleep 0.2
+            printf 'mouse_button 0\n'
+            sleep 0.4
+            printf 'screendump %s\n' "$TMP_DIR/calculator-result.ppm"
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
 
     if [ "$boot_number" = "2" ]; then
         python3 scripts/check-qemu-screen.py "$TMP_DIR/start-menu.ppm" --start-menu
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/calculator-window.ppm" --calculator-window
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/calculator-result.ppm" --calculator-result
     fi
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--launcher-terminal"); then
+    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--calculator-result"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi
