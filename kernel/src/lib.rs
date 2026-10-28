@@ -273,7 +273,10 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
         oldest
     };
     APP_WINDOW_KIND[slot].store(kind, Ordering::Relaxed);
-    let (window_x, window_y) = if kind == 4 || kind == 5 {
+    let editor_already_open = (0..count).any(|i| APP_WINDOW_KIND[i].load(Ordering::Relaxed) == 5);
+    let (window_x, window_y) = if kind == 4 && editor_already_open {
+        (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
+    } else if kind == 4 || kind == 5 {
         (info.width.saturating_sub(520) / 2, info.height.saturating_sub(336) / 2)
     } else {
         (180 + (slot * 44), 100 + (slot * 36))
