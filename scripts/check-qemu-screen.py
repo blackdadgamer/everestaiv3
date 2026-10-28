@@ -6,7 +6,7 @@ from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result|--editor-window|--editor-saved]", file=sys.stderr)
+        print("usage: check-qemu-screen.py SCREEN [--mouse-drag|--start-menu|--calculator-window|--calculator-result|--editor-window|--editor-saved|--window-tiles]", file=sys.stderr)
         return 2
     path = Path(sys.argv[1])
     data = path.read_bytes()
@@ -63,6 +63,17 @@ def main() -> int:
             print("Text Editor did not show its successful-save marker.", file=sys.stderr)
             return 1
         print("Text Editor Save feedback verified.")
+        return 0
+    if "--window-tiles" in sys.argv:
+        border = (187, 154, 247)
+        samples = [(2, height // 3), (width // 2 + 2, height // 3)]
+        if not all(is_color(pixel(x, y), border) for x, y in samples):
+            print("Left and right snapped app windows were not both visible.", file=sys.stderr)
+            return 1
+        if not is_color(pixel(width // 4, 2), border) or not is_color(pixel(3 * width // 4, 2), border):
+            print("Tiled windows did not span both screen halves.", file=sys.stderr)
+            return 1
+        print("Left and right snapped app windows verified simultaneously.")
         return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.
