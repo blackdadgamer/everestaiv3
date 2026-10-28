@@ -27,7 +27,7 @@ def main() -> int:
     if width < 800 or height < 600:
         print(f"Framebuffer too small: {width}x{height}", file=sys.stderr)
         return 1
-    if "--window-tiles" not in sys.argv and not is_color(pixel(5, 5), (26, 27, 38)):
+    if "--window-tiles" not in sys.argv and "--editor-tiles" not in sys.argv and not is_color(pixel(5, 5), (26, 27, 38)):
         print("Tokyo Night desktop background mismatch.", file=sys.stderr)
         return 1
     if "--start-menu" in sys.argv:
