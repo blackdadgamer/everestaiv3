@@ -257,6 +257,10 @@ static CALCULATOR_DISPLAY: [AtomicU8; CALCULATOR_CAPACITY] =
     [const { AtomicU8::new(0) }; CALCULATOR_CAPACITY];
 static CALCULATOR_LEN: AtomicUsize = AtomicUsize::new(0);
 static CALCULATOR_RESULT_OK: AtomicU8 = AtomicU8::new(0);
+const EDITOR_CAPACITY: usize = 96;
+static EDITOR_BUFFER: [AtomicU8; EDITOR_CAPACITY] = [const { AtomicU8::new(0) }; EDITOR_CAPACITY];
+static EDITOR_LEN: AtomicUsize = AtomicUsize::new(0);
+static EDITOR_SAVED: AtomicU8 = AtomicU8::new(0);
 
 fn spawn_app_window(info: &BootInfo, kind: u8) {
     let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
@@ -266,7 +270,7 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
         oldest
     };
     APP_WINDOW_KIND[slot].store(kind, Ordering::Relaxed);
-    let (window_x, window_y) = if kind == 4 {
+    let (window_x, window_y) = if kind == 4 || kind == 5 {
         (info.width.saturating_sub(520) / 2, info.height.saturating_sub(336) / 2)
     } else {
         (180 + (slot * 44), 100 + (slot * 36))
@@ -300,7 +304,7 @@ fn draw_app_windows(info: &BootInfo) {
         draw_border(info, x, y, w, h, 2, FILE_SELECTION);
         fill_rect(info, x + 2, y + 2, w - 4, h - 4, WINDOW_BG);
         fill_rect(info, x + 2, y + 2, w - 4, 42, TITLEBAR_BG);
-        let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", 3 => b"SETTINGS", _ => b"CALCULATOR" };
+        let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", 3 => b"SETTINGS", 4 => b"CALCULATOR", _ => b"TEXT EDITOR" };
         draw_text(info, x + 18, y + 15, 2, title, UI_WHITE);
         if kind == 1 {
             // Stable framebuffer marker used by the headless launcher regression test.
@@ -308,6 +312,8 @@ fn draw_app_windows(info: &BootInfo) {
         }
         if kind == 4 {
             draw_calculator(info, x, y, w, h);
+        } else if kind == 5 {
+            draw_text_editor(info, x, y, w, h);
         } else if kind == 3 {
             draw_text(info, x + 24, y + 90, 2, b"Everest OS v1.0", FILE_TEXT);
             draw_text(info, x + 24, y + 140, 2, b"Created by Amit Pathak", FILE_TEXT);
@@ -420,6 +426,76 @@ fn handle_calculator_click(info: &BootInfo, x: usize, y: usize) -> bool {
     false
 }
 
+
+fn draw_text_editor(info: &BootInfo, x: usize, y: usize, w: usize, _h: usize) {
+    fill_rect(info, x + 18, y + 54, w.saturating_sub(36), 174, (16, 18, 27));
+    draw_border(info, x + 18, y + 54, w.saturating_sub(36), 174, 1, (65, 72, 97));
+    draw_text(info, x + 28, y + 62, 1, b"NOTES.TXT", (122, 162, 247));
+    let len = EDITOR_LEN.load(Ordering::Relaxed).min(EDITOR_CAPACITY);
+    let mut bytes = [0u8; EDITOR_CAPACITY];
+    for (i, byte) in bytes.iter_mut().enumerate().take(len) { *byte = EDITOR_BUFFER[i].load(Ordering::Relaxed); }
+    for row in 0..3 {
+        let start = row * 30;
+        if start >= len { break; }
+        let end = (start + 30).min(len);
+        draw_text(info, x + 28, y + 88 + row * 36, 1, &bytes[start..end], FILE_TEXT);
+    }
+    fill_rect(info, x + 380, y + 244, 112, 34, (49, 57, 82));
+    draw_border(info, x + 380, y + 244, 112, 34, 1, (122, 162, 247));
+    draw_text(info, x + 410, y + 256, 1, b"SAVE", UI_WHITE);
+    if EDITOR_SAVED.load(Ordering::Relaxed) != 0 {
+        fill_rect(info, x + 24, y + 244, 8, 8, (80, 200, 160));
+        draw_text(info, x + 42, y + 250, 1, b"SAVED TO DISK", (80, 200, 160));
+    }
+}
+
+fn handle_text_editor_key(key: u8) -> bool {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    let mut top = None;
+    let mut top_z = 0usize;
+    for i in 0..count {
+        let z = APP_WINDOW_Z[i].load(Ordering::Relaxed);
+        if z >= top_z { top_z = z; top = Some(APP_WINDOW_KIND[i].load(Ordering::Relaxed)); }
+    }
+    if top != Some(5) { return false; }
+    let len = EDITOR_LEN.load(Ordering::Relaxed).min(EDITOR_CAPACITY);
+    if key == 8 || key == 127 {
+        if len > 0 {
+            EDITOR_BUFFER[len - 1].store(0, Ordering::Relaxed);
+            EDITOR_LEN.store(len - 1, Ordering::Relaxed);
+            EDITOR_SAVED.store(0, Ordering::Relaxed);
+        }
+    } else if (32..=126).contains(&key) && len < EDITOR_CAPACITY {
+        let previous = if len == 0 { b' ' } else { EDITOR_BUFFER[len - 1].load(Ordering::Relaxed) };
+        let stored = if key.is_ascii_lowercase() && previous == b' ' { key.to_ascii_uppercase() } else { key };
+        EDITOR_BUFFER[len].store(stored, Ordering::Relaxed);
+        EDITOR_LEN.store(len + 1, Ordering::Relaxed);
+        EDITOR_SAVED.store(0, Ordering::Relaxed);
+    }
+    true
+}
+
+fn handle_text_editor_click(info: &BootInfo, x: usize, y: usize) -> bool {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    for i in (0..count).rev() {
+        if APP_WINDOW_KIND[i].load(Ordering::Relaxed) != 5 { continue; }
+        let wx = APP_WINDOW_X[i].load(Ordering::Relaxed);
+        let wy = APP_WINDOW_Y[i].load(Ordering::Relaxed);
+        if x >= wx + 380 && x < wx + 492 && y >= wy + 244 && y < wy + 278 {
+            let len = EDITOR_LEN.load(Ordering::Relaxed).min(EDITOR_CAPACITY);
+            let mut bytes = [0u8; EDITOR_CAPACITY];
+            for (j, byte) in bytes.iter_mut().enumerate().take(len) { *byte = EDITOR_BUFFER[j].load(Ordering::Relaxed); }
+            let saved = filesystem::open_volume()
+                .and_then(|volume| volume.write_root_file(b"NOTES   TXT", &bytes[..len]))
+                .is_ok();
+            EDITOR_SAVED.store(saved as u8, Ordering::Relaxed);
+            draw_desktop(info);
+            return true;
+        }
+    }
+    false
+}
+
 fn parse_calculator_number(bytes: &[u8]) -> Option<usize> {
     if bytes.is_empty() { return None; }
     let mut value = 0usize;
@@ -433,13 +509,14 @@ fn parse_calculator_number(bytes: &[u8]) -> Option<usize> {
 fn draw_start_menu(info: &BootInfo) {
     if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { return; }
     let y = info.height.saturating_sub(36);
-    fill_rect(info, 12, y.saturating_sub(198), 220, 194, TITLEBAR_BG);
-    draw_border(info, 12, y.saturating_sub(198), 220, 194, 2, FILE_SELECTION);
-    draw_text(info, 28, y.saturating_sub(180), 2, b"START MENU", UI_WHITE);
+    fill_rect(info, 12, y.saturating_sub(232), 220, 228, TITLEBAR_BG);
+    draw_border(info, 12, y.saturating_sub(232), 220, 228, 2, FILE_SELECTION);
+    draw_text(info, 28, y.saturating_sub(214), 2, b"START MENU", UI_WHITE);
     draw_text(info, 32, y.saturating_sub(146), 2, b"TERMINAL", FILE_TEXT);
     draw_text(info, 32, y.saturating_sub(112), 2, b"FILE MANAGER", FILE_TEXT);
     draw_text(info, 32, y.saturating_sub(78), 2, b"SETTINGS", FILE_TEXT);
     draw_text(info, 32, y.saturating_sub(44), 2, b"CALCULATOR", (122, 162, 247));
+    draw_text(info, 32, y.saturating_sub(10), 2, b"TEXT EDITOR", FILE_TEXT);
 }
 
 
@@ -588,7 +665,9 @@ fn process_mouse_events(info: &BootInfo) -> bool {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
             } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(194) && y < taskbar_y {
                 let row = y.saturating_sub(taskbar_y.saturating_sub(164)) / 34;
-                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), _ => spawn_app_window(info, 4) }
+                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), 3 => spawn_app_window(info, 4), _ => spawn_app_window(info, 5) }
+            } else if handle_text_editor_click(info, x, y) {
+                // Text Editor Save button consumed the click.
             } else if handle_calculator_click(info, x, y) {
                 // Calculator button consumed the click.
             } else if x >= wx && x < wx + window_width && y >= wy && y < wy + 48 {
@@ -697,6 +776,10 @@ fn update_onboarding(info: &BootInfo) {
     let mut redraw = false;
 
     while let Some(key) = interrupts::pop_key() {
+        if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && handle_text_editor_key(key) {
+            redraw = true;
+            continue;
+        }
         match ONBOARDING_STEP.load(Ordering::Relaxed) {
             0 => {
                 if key == b'\n' {
