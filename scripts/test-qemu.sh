@@ -331,6 +331,14 @@ run_qemu() {
             sleep 0.7
             printf 'screendump %s\n' "$TMP_DIR/editor-instances-tiled.ppm"
             sleep 1
+            sleep 0.5
+            # Open Terminal and a fresh Text Editor using only keyboard shortcuts.
+            printf 'sendkey alt-t\\n'
+            sleep 0.6
+            printf 'sendkey alt-e\\n'
+            sleep 0.8
+            printf 'screendump %s\\n' "$TMP_DIR/global-shortcuts.ppm"
+            sleep 0.3
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
         cp "$TMP_DIR/editor-instances-tiled.ppm" "$ROOT_DIR/dist/qemu-debug-editor-instances-tiled.ppm"
     fi
@@ -342,6 +350,7 @@ run_qemu() {
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-window.ppm" --editor-window
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-saved.ppm" --editor-saved
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-instances-tiled.ppm" --editor-tiles
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/global-shortcuts.ppm" --global-shortcuts
     fi
     printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
     wait "$QEMU_PID" || true
