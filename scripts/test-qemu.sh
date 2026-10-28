@@ -289,9 +289,11 @@ run_qemu() {
             sleep 0.2
             printf 'mouse_button 0\n'
             sleep 0.4
-            # Select Text Editor from the Start menu, matching the known-good launch path.
-            printf 'mouse_move 0 -20\n'
-            sleep 0.2
+            # Text Editor is one row below Calculator in the Start menu.
+            for step in 1 2; do
+                printf 'mouse_move 0 -20\n'
+                sleep 0.05
+            done
             printf 'mouse_button 1\n'
             sleep 0.2
             printf 'mouse_button 0\n'
