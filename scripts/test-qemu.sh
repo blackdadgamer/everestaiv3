@@ -300,7 +300,7 @@ run_qemu() {
             sleep 0.7
             printf 'screendump %s\n' "$TMP_DIR/two-editors-open.ppm"
             # Move to the second Editor title bar and snap that instance to the right half.
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34; do
                 printf 'mouse_move 20 0\n'
                 sleep 0.03
             done
@@ -310,7 +310,7 @@ run_qemu() {
             done
             printf 'mouse_button 1\n'
             sleep 0.2
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28; do
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
                 printf 'mouse_move 20 0\n'
                 sleep 0.03
             done
