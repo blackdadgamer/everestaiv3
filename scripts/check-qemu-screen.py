@@ -46,9 +46,10 @@ def main() -> int:
         marker_x = (width - 520) // 2 + 520 - 30
         marker_y = (height - 336) // 2 + 62
         if not is_color(pixel(marker_x, marker_y), (80, 200, 160)):
-            print("Calculator did not update its display with a completed addition.", file=sys.stderr)
+            print("Calculator display did not update after mouse input.", file=sys.stderr)
             return 1
-        print("Calculator mouse input and addition result marker verified.")
+        print("Calculator mouse input updated the display.")
+
         return 0
     # Window border is a long violet line; locate it rather than assuming it
     # remained centered after the mouse drag.
