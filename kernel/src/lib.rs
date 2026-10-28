@@ -256,6 +256,7 @@ const CALCULATOR_CAPACITY: usize = 24;
 static CALCULATOR_DISPLAY: [AtomicU8; CALCULATOR_CAPACITY] =
     [const { AtomicU8::new(0) }; CALCULATOR_CAPACITY];
 static CALCULATOR_LEN: AtomicUsize = AtomicUsize::new(0);
+static CALCULATOR_RESULT_OK: AtomicU8 = AtomicU8::new(0);
 
 fn spawn_app_window(info: &BootInfo, kind: u8) {
     let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
@@ -334,6 +335,9 @@ fn draw_calculator(info: &BootInfo, x: usize, y: usize, w: usize, _h: usize) {
         }
         draw_text(info, x + 30, y + 68, 2, &display[..len], UI_WHITE);
     }
+    if CALCULATOR_RESULT_OK.load(Ordering::Relaxed) != 0 {
+        fill_rect(info, x + w.saturating_sub(30), y + 62, 8, 8, (80, 200, 160));
+    }
     let keys: [[u8; 4]; 4] = [
         [b'7', b'8', b'9', b'/'],
         [b'4', b'5', b'6', b'*'],
@@ -374,6 +378,7 @@ fn handle_calculator_click(info: &BootInfo, x: usize, y: usize) -> bool {
         if key == b'C' {
             for slot in CALCULATOR_DISPLAY.iter() { slot.store(0, Ordering::Relaxed); }
             CALCULATOR_LEN.store(0, Ordering::Relaxed);
+            CALCULATOR_RESULT_OK.store(0, Ordering::Relaxed);
         } else if key == b'=' {
             let len = CALCULATOR_LEN.load(Ordering::Relaxed).min(CALCULATOR_CAPACITY);
             let mut bytes = [0u8; CALCULATOR_CAPACITY];
@@ -394,9 +399,11 @@ fn handle_calculator_click(info: &BootInfo, x: usize, y: usize) -> bool {
                     }
                     for j in 0..n { CALCULATOR_DISPLAY[j].store(out[n - 1 - j], Ordering::Relaxed); }
                     CALCULATOR_LEN.store(n, Ordering::Relaxed);
+                    CALCULATOR_RESULT_OK.store(1, Ordering::Relaxed);
                 }
             }
         } else {
+            CALCULATOR_RESULT_OK.store(0, Ordering::Relaxed);
             let len = CALCULATOR_LEN.load(Ordering::Relaxed).min(CALCULATOR_CAPACITY);
             if len < CALCULATOR_CAPACITY {
                 CALCULATOR_DISPLAY[len].store(key, Ordering::Relaxed);
