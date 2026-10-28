@@ -295,11 +295,9 @@ run_qemu() {
             sleep 0.2
             printf 'mouse_button 0\n'
             sleep 0.4
-            # Text Editor is the bottom Start-menu item.
-            for step in 1 2; do
-                printf 'mouse_move 0 -20\n'
-                sleep 0.05
-            done
+            # Select Text Editor from the Start menu, matching the known-good launch path.
+            printf 'mouse_move 0 -20\n'
+            sleep 0.2
             printf 'mouse_button 1\n'
             sleep 0.2
             printf 'mouse_button 0\n'
@@ -336,6 +334,7 @@ run_qemu() {
             printf 'mouse_button 0\n'
             sleep 0.7
             printf 'screendump %s\n' "$TMP_DIR/editor-instances-tiled.ppm"
+            sleep 1
             cp "$TMP_DIR/editor-instances-tiled.ppm" "$ROOT_DIR/dist/qemu-debug-editor-instances-tiled.ppm"
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/hmp-$boot_number.log"
     fi
