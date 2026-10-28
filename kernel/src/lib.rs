@@ -335,8 +335,12 @@ fn draw_calculator(info: &BootInfo, x: usize, y: usize, w: usize, _h: usize) {
         }
         draw_text(info, x + 30, y + 68, 2, &display[..len], UI_WHITE);
     }
-    if CALCULATOR_RESULT_OK.load(Ordering::Relaxed) != 0 {
+    if len > 0 {
+        // Stable indicator that a mouse click changed the calculator display.
         fill_rect(info, x + w.saturating_sub(30), y + 62, 8, 8, (80, 200, 160));
+    }
+    if CALCULATOR_RESULT_OK.load(Ordering::Relaxed) != 0 {
+        fill_rect(info, x + w.saturating_sub(44), y + 62, 8, 8, (122, 162, 247));
     }
     let keys: [[u8; 4]; 4] = [
         [b'7', b'8', b'9', b'/'],
