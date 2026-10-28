@@ -443,6 +443,8 @@ fn handle_calculator_click(info: &BootInfo, x: usize, y: usize) -> bool {
 
 
 fn draw_text_editor(info: &BootInfo, index: usize, x: usize, y: usize, w: usize, _h: usize) {
+    // Stable per-instance marker used by the QEMU screenshot regression test.
+    fill_rect(info, x + 8, y + 48, 8, 8, (80, 200, 160));
     fill_rect(info, x + 18, y + 54, w.saturating_sub(36), 174, (16, 18, 27));
     draw_border(info, x + 18, y + 54, w.saturating_sub(36), 174, 1, (65, 72, 97));
     draw_text(info, x + 28, y + 62, 1, b"NOTES.TXT", (122, 162, 247));
