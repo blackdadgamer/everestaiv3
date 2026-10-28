@@ -478,6 +478,69 @@ fn draw_text_editor(info: &BootInfo, index: usize, x: usize, y: usize, w: usize,
     }
 }
 
+fn close_active_app_window(info: &BootInfo) {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    let active = ACTIVE_APP_WINDOW.load(Ordering::Relaxed);
+    if count == 0 || active >= count { return; }
+    for index in active..count.saturating_sub(1) {
+        APP_WINDOW_KIND[index].store(APP_WINDOW_KIND[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        APP_WINDOW_ID[index].store(APP_WINDOW_ID[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        APP_WINDOW_X[index].store(APP_WINDOW_X[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        APP_WINDOW_Y[index].store(APP_WINDOW_Y[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        APP_WINDOW_Z[index].store(APP_WINDOW_Z[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        APP_WINDOW_W[index].store(APP_WINDOW_W[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        APP_WINDOW_H[index].store(APP_WINDOW_H[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        EDITOR_LEN[index].store(EDITOR_LEN[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        EDITOR_SAVED[index].store(EDITOR_SAVED[index + 1].load(Ordering::Relaxed), Ordering::Relaxed);
+        for offset in 0..EDITOR_CAPACITY {
+            EDITOR_BUFFER[index * EDITOR_CAPACITY + offset].store(
+                EDITOR_BUFFER[(index + 1) * EDITOR_CAPACITY + offset].load(Ordering::Relaxed),
+                Ordering::Relaxed,
+            );
+        }
+    }
+    APP_WINDOW_COUNT.store(count - 1, Ordering::Relaxed);
+    let next_count = count - 1;
+    let next_active = if next_count == 0 { usize::MAX } else { active.min(next_count - 1) };
+    ACTIVE_APP_WINDOW.store(next_active, Ordering::Relaxed);
+    START_MENU_OPEN.store(0, Ordering::Relaxed);
+    draw_desktop(info);
+}
+
+fn cycle_app_window_focus(info: &BootInfo) {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    if count == 0 { return; }
+    let active = ACTIVE_APP_WINDOW.load(Ordering::Relaxed);
+    let mut candidate = None;
+    let mut candidate_z = usize::MAX;
+    let mut lowest = 0usize;
+    let mut lowest_z = usize::MAX;
+    for index in 0..count {
+        let z = APP_WINDOW_Z[index].load(Ordering::Relaxed);
+        if z < lowest_z { lowest = index; lowest_z = z; }
+        if z > APP_WINDOW_Z[active.min(count - 1)].load(Ordering::Relaxed) && z < candidate_z {
+            candidate = Some(index);
+            candidate_z = z;
+        }
+    }
+    let next = candidate.unwrap_or(lowest);
+    ACTIVE_APP_WINDOW.store(next, Ordering::Relaxed);
+    APP_WINDOW_Z[next].store(APP_Z_CLOCK.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+    draw_desktop(info);
+}
+
+fn handle_global_shortcut(info: &BootInfo, key: u8) -> bool {
+    match key {
+        0xF1 => spawn_app_window(info, 1), // Alt+T
+        0xF2 => spawn_app_window(info, 5), // Alt+E
+        0xF3 => spawn_app_window(info, 4), // Alt+C
+        0xF4 => close_active_app_window(info), // Alt+W
+        0xF5 => cycle_app_window_focus(info), // Alt+Tab
+        _ => return false,
+    }
+    true
+}
+
 fn handle_text_editor_key(key: u8) -> bool {
     let index = ACTIVE_APP_WINDOW.load(Ordering::Relaxed);
     if index >= APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8)
@@ -879,6 +942,10 @@ fn update_onboarding(info: &BootInfo) {
     let mut redraw = false;
 
     while let Some(key) = interrupts::pop_key() {
+        if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && handle_global_shortcut(info, key) {
+            redraw = true;
+            continue;
+        }
         if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && handle_text_editor_key(key) {
             redraw = true;
             continue;
