@@ -269,6 +269,7 @@ static EDITOR_LEN: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static EDITOR_SAVED: [AtomicU8; 8] = [const { AtomicU8::new(0) }; 8];
 static VIDEO_PLAYING: AtomicU8 = AtomicU8::new(0);
 static VIDEO_FRAME: AtomicUsize = AtomicUsize::new(0);
+static VIDEO_REFRESH_TICK: AtomicUsize = AtomicUsize::new(0);
 
 fn spawn_app_window(info: &BootInfo, kind: u8) {
     let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
@@ -1042,8 +1043,11 @@ fn update_onboarding(info: &BootInfo) {
     let video_open = (0..APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8))
         .any(|index| APP_WINDOW_KIND[index].load(Ordering::Relaxed) == 6);
     if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && video_open && VIDEO_PLAYING.load(Ordering::Relaxed) != 0 {
-        VIDEO_FRAME.fetch_add(1, Ordering::Relaxed);
-        draw_desktop(info);
+        let tick = VIDEO_REFRESH_TICK.fetch_add(1, Ordering::Relaxed);
+        if tick % 4 == 0 {
+            VIDEO_FRAME.fetch_add(1, Ordering::Relaxed);
+            draw_desktop(info);
+        }
     }
     if redraw {
         draw_onboarding_screen(info);
