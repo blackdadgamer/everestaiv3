@@ -267,6 +267,9 @@ const EDITOR_CAPACITY: usize = 96;
 static EDITOR_BUFFER: [AtomicU8; EDITOR_CAPACITY * 8] = [const { AtomicU8::new(0) }; EDITOR_CAPACITY * 8];
 static EDITOR_LEN: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
 static EDITOR_SAVED: [AtomicU8; 8] = [const { AtomicU8::new(0) }; 8];
+static VIDEO_PLAYING: AtomicU8 = AtomicU8::new(0);
+static VIDEO_FRAME: AtomicUsize = AtomicUsize::new(0);
+static VIDEO_REFRESH_TICK: AtomicUsize = AtomicUsize::new(0);
 
 fn spawn_app_window(info: &BootInfo, kind: u8) {
     let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
@@ -291,7 +294,7 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
         (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
     } else if kind == 4 && editor_already_open {
         (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
-    } else if kind == 4 || kind == 5 {
+    } else if kind == 4 || kind == 5 || kind == 6 {
         (info.width.saturating_sub(520) / 2, info.height.saturating_sub(336) / 2)
     } else {
         (180 + (slot * 44), 100 + (slot * 36))
@@ -327,10 +330,10 @@ fn draw_app_windows(info: &BootInfo) {
         draw_border(info, x, y, w, h, 2, FILE_SELECTION);
         fill_rect(info, x + 2, y + 2, w - 4, h - 4, WINDOW_BG);
         fill_rect(info, x + 2, y + 2, w - 4, 42, TITLEBAR_BG);
-        let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", 3 => b"SETTINGS", 4 => b"CALCULATOR", _ => b"TEXT EDITOR" };
+        let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", 3 => b"SETTINGS", 4 => b"CALCULATOR", 5 => b"TEXT EDITOR", _ => b"VIDEO PLAYER" };
         draw_text(info, x + 18, y + 15, 2, title, UI_WHITE);
-        if kind == 1 {
-            // Stable framebuffer marker used by the headless launcher regression test.
+        if kind == 1 || kind == 6 {
+            // Stable framebuffer markers used by headless app-launch regression tests.
             fill_rect(info, x + 8, y + 48, 8, 8, (80, 200, 160));
         }
         if kind == 4 {
@@ -340,6 +343,8 @@ fn draw_app_windows(info: &BootInfo) {
         } else if kind == 3 {
             draw_text(info, x + 24, y + 90, 2, b"Everest OS v1.0", FILE_TEXT);
             draw_text(info, x + 24, y + 140, 2, b"Created by Amit Pathak", FILE_TEXT);
+        } else if kind == 6 {
+            draw_video_player(info, x, y, w, h);
         } else if kind == 1 {
             draw_text(info, x + 24, y + 80, 2, b"Everest Terminal", FILE_TEXT);
             draw_text(info, x + 24, y + 124, 1, b"Ready for commands", UI_WHITE);
@@ -348,6 +353,54 @@ fn draw_app_windows(info: &BootInfo) {
             draw_text(info, x + 24, y + 124, 1, b"Browse your files", FILE_TEXT);
         }
     }
+}
+
+fn draw_video_player(info: &BootInfo, x: usize, y: usize, w: usize, h: usize) {
+    let frame = VIDEO_FRAME.load(Ordering::Relaxed);
+    let playing = VIDEO_PLAYING.load(Ordering::Relaxed) != 0;
+    let vx = x + 18;
+    let vy = y + 54;
+    let vw = w.saturating_sub(36);
+    let vh = h.saturating_sub(116).min(190);
+    fill_rect(info, vx, vy, vw, vh, (5, 8, 24));
+    let bar_width = (vw / 8).max(1);
+    let colors = [(239, 68, 68), (249, 115, 22), (234, 179, 8), (34, 197, 94), (6, 182, 212), (59, 130, 246), (139, 92, 246), (236, 72, 153)];
+    for bar in 0..8usize {
+        let phase = (bar + frame / 2) % 8;
+        let width = if bar == 7 { vw.saturating_sub(bar * bar_width) } else { bar_width };
+        fill_rect(info, vx + bar * bar_width, vy, width, vh, colors[phase]);
+    }
+    let marker_x = vx + 12 + (frame % vw.saturating_sub(24).max(1));
+    fill_rect(info, marker_x, vy + 8, 4, vh.saturating_sub(16), UI_WHITE);
+    let control_y = vy + vh + 12;
+    fill_rect(info, vx, control_y, 112, 32, (49, 57, 82));
+    draw_border(info, vx, control_y, 112, 32, 1, FILE_SELECTION);
+    draw_text(info, vx + 12, control_y + 10, 1, if playing { b"PAUSE [P]" } else { b"PLAY [P]" }, UI_WHITE);
+    fill_rect(info, vx + 124, control_y, 92, 32, (49, 57, 82));
+    draw_border(info, vx + 124, control_y, 92, 32, 1, FILE_SELECTION);
+    draw_text(info, vx + 140, control_y + 10, 1, b"STOP [S]", UI_WHITE);
+    draw_text(info, vx, control_y + 42, 1, if playing { b"PLAYING - RGB TEST PATTERN" } else { b"PAUSED - RGB TEST PATTERN" }, FILE_TEXT);
+}
+
+fn handle_video_player_click(info: &BootInfo, x: usize, y: usize) -> bool {
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    for i in (0..count).rev() {
+        if APP_WINDOW_KIND[i].load(Ordering::Relaxed) != 6 { continue; }
+        let wx = APP_WINDOW_X[i].load(Ordering::Relaxed);
+        let wy = APP_WINDOW_Y[i].load(Ordering::Relaxed);
+        if x >= wx + 18 && x < wx + 130 && y >= wy + 256 && y < wy + 300 {
+            VIDEO_PLAYING.store(if VIDEO_PLAYING.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
+            draw_desktop(info);
+            return true;
+        }
+        if x >= wx + 142 && x < wx + 234 && y >= wy + 256 && y < wy + 300 {
+            VIDEO_PLAYING.store(0, Ordering::Relaxed);
+            VIDEO_FRAME.store(0, Ordering::Relaxed);
+            draw_desktop(info);
+            return true;
+        }
+    }
+    false
 }
 
 fn draw_calculator(info: &BootInfo, x: usize, y: usize, w: usize, _h: usize) {
@@ -540,9 +593,10 @@ fn parse_calculator_number(bytes: &[u8]) -> Option<usize> {
 fn draw_start_menu(info: &BootInfo) {
     if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { return; }
     let y = info.height.saturating_sub(36);
-    fill_rect(info, 12, y.saturating_sub(232), 220, 228, TITLEBAR_BG);
-    draw_border(info, 12, y.saturating_sub(232), 220, 228, 2, FILE_SELECTION);
-    draw_text(info, 28, y.saturating_sub(214), 2, b"START MENU", UI_WHITE);
+    fill_rect(info, 12, y.saturating_sub(266), 220, 262, TITLEBAR_BG);
+    draw_border(info, 12, y.saturating_sub(266), 220, 262, 2, FILE_SELECTION);
+    draw_text(info, 28, y.saturating_sub(248), 2, b"START MENU", UI_WHITE);
+    draw_text(info, 32, y.saturating_sub(180), 2, b"VIDEO PLAYER", (80, 200, 160));
     draw_text(info, 32, y.saturating_sub(146), 2, b"TERMINAL", FILE_TEXT);
     draw_text(info, 32, y.saturating_sub(112), 2, b"FILE MANAGER", FILE_TEXT);
     draw_text(info, 32, y.saturating_sub(78), 2, b"SETTINGS", FILE_TEXT);
@@ -715,9 +769,18 @@ fn process_mouse_events(info: &BootInfo) -> bool {
             let taskbar_y = info.height.saturating_sub(36);
             if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
-            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(232) && y < taskbar_y {
-                let row = y.saturating_sub(taskbar_y.saturating_sub(164)) / 34;
-                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), 3 => spawn_app_window(info, 4), _ => spawn_app_window(info, 5) }
+            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(266) && y < taskbar_y {
+                if y < taskbar_y.saturating_sub(164) {
+                    VIDEO_PLAYING.store(1, Ordering::Relaxed);
+                    spawn_app_window(info, 6);
+                } else {
+                    let row = y.saturating_sub(taskbar_y.saturating_sub(164)) / 34;
+                    match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), 3 => spawn_app_window(info, 4), _ => spawn_app_window(info, 5) }
+                }
+            } else if handle_video_player_click(info, x, y) {
+                // Video Player transport controls consumed the click.
+            } else if handle_video_player_click(info, x, y) {
+                // Video Player transport controls consumed the click.
             } else if handle_text_editor_click(info, x, y) {
                 // Text Editor Save button consumed the click.
             } else if handle_calculator_click(info, x, y) {
@@ -879,6 +942,21 @@ fn update_onboarding(info: &BootInfo) {
     let mut redraw = false;
 
     while let Some(key) = interrupts::pop_key() {
+        if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 {
+            let active = ACTIVE_APP_WINDOW.load(Ordering::Relaxed);
+            if active < APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8) && APP_WINDOW_KIND[active].load(Ordering::Relaxed) == 6 {
+                if key == b'p' || key == b'P' {
+                    VIDEO_PLAYING.store(if VIDEO_PLAYING.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
+                    redraw = true;
+                    continue;
+                } else if key == b's' || key == b'S' {
+                    VIDEO_PLAYING.store(0, Ordering::Relaxed);
+                    VIDEO_FRAME.store(0, Ordering::Relaxed);
+                    redraw = true;
+                    continue;
+                }
+            }
+        }
         if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && handle_text_editor_key(key) {
             redraw = true;
             continue;
@@ -967,6 +1045,21 @@ fn update_onboarding(info: &BootInfo) {
     }
 
     if process_mouse_events(info) { return; }
+    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
+    let video_window = (0..count).find(|index| APP_WINDOW_KIND[*index].load(Ordering::Relaxed) == 6);
+    if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && VIDEO_PLAYING.load(Ordering::Relaxed) != 0 {
+        let tick = VIDEO_REFRESH_TICK.fetch_add(1, Ordering::Relaxed);
+        if tick % 20 == 0 {
+            if let Some(index) = video_window {
+                VIDEO_FRAME.fetch_add(1, Ordering::Relaxed);
+                let x = APP_WINDOW_X[index].load(Ordering::Relaxed);
+                let y = APP_WINDOW_Y[index].load(Ordering::Relaxed);
+                let w = APP_WINDOW_W[index].load(Ordering::Relaxed).min(info.width.saturating_sub(x));
+                let h = APP_WINDOW_H[index].load(Ordering::Relaxed).min(info.height.saturating_sub(y + 36));
+                draw_video_player(info, x, y, w, h);
+            }
+        }
+    }
     if redraw {
         draw_onboarding_screen(info);
     }

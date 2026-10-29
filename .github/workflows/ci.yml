@@ -1,5 +1,9 @@
 name: Everest OS CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -37,7 +41,7 @@ jobs:
         timeout-minutes: 30
         run: |
           set -euxo pipefail
-          packages="qemu-system-x86 ovmf dosfstools mtools socat"
+          packages="qemu-system-x86 ovmf dosfstools mtools socat xorriso"
           # Refresh package indexes with bounded network retries before installing.
           sudo apt-get update \
             -o Acquire::Retries=3 \
@@ -52,8 +56,38 @@ jobs:
             $packages
           qemu-system-x86_64 --version
 
+      - name: Build UEFI application
+        run: sh scripts/build-uefi.sh
+
+      - name: Build bootable UEFI ISO
+        run: sh scripts/build-iso.sh
+
+      - name: Package standalone EFI ZIP
+        run: |
+          mkdir -p dist/efi-zip/EFI/BOOT
+          cp dist/EFI/BOOT/BOOTX64.EFI dist/efi-zip/EFI/BOOT/BOOTX64.EFI
+          (cd dist/efi-zip && zip -qr ../everest-os-uefi.zip .)
+
       - name: Build and boot in QEMU/OVMF
         run: sh scripts/test-qemu.sh
+
+      - name: Upload bootable ISO
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: everest-os-iso
+          path: dist/everest-os.iso
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload standalone EFI ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: everest-os-uefi-zip
+          path: dist/everest-os-uefi.zip
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload boot and QEMU diagnostics
         if: always()
@@ -62,6 +96,7 @@ jobs:
           name: everest-os-uefi-boot-and-diagnostics
           path: |
             dist/EFI/BOOT/BOOTX64.EFI
+            dist/everest-os.iso
             dist/qemu-debug-*
             Cargo.lock
           if-no-files-found: warn

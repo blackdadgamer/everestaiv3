@@ -121,6 +121,40 @@ run_qemu() {
             printf 'sendkey ret\n'
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
+    elif [ "$boot_number" = "3" ]; then
+        {
+            printf 'info mice\n'
+            printf 'mouse_set 0\n'
+            # From the centered PS/2 cursor, move to START.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29; do printf 'mouse_move -20 0\n'; sleep 0.05; done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 0 20\n'; sleep 0.05; done
+            printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/video-start-menu.ppm"
+            # Video Player is the first launcher entry, above Terminal.
+            for step in 1 2 3 4 5 6 7 8 9 10; do printf 'mouse_move 0 -20\n'; sleep 0.1; done
+            printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.8
+            printf 'screendump %s\n' "$TMP_DIR/video-window.ppm"
+            # Move onto Play/Pause, click to pause, and compare two frames.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 20 0\n'; sleep 0.05; done
+            for step in 1 2 3 4; do printf 'mouse_move 0 -20\n'; sleep 0.05; done
+            printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/video-paused-a.ppm"
+            sleep 0.6
+            printf 'screendump %s\n' "$TMP_DIR/video-paused-b.ppm"
+            # Keyboard P resumes and S stops; capture both control states for CI artifacts.
+            printf 'sendkey p\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-playing.ppm"
+            printf 'sendkey s\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-stopped.ppm"
+            printf 'quit\n'
+        } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/video-hmp.log"
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/video-start-menu.ppm" --start-menu
+        cp "$TMP_DIR/video-window.ppm" "$ROOT_DIR/dist/qemu-debug-video-window.ppm"
+        cp "$TMP_DIR/video-paused-a.ppm" "$ROOT_DIR/dist/qemu-debug-video-paused.ppm"
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/video-window.ppm" --video-window
+        if ! cmp -s "$TMP_DIR/video-paused-a.ppm" "$TMP_DIR/video-paused-b.ppm"; then
+            echo "Video Player frame changed after Pause; animation did not stop." >&2
+            exit 1
+        fi
+        echo "Video Player Play/Pause framebuffer freeze verified."
     else
         # Use QEMU's HMP mouse controls so movement and button state target
         # the same active PS/2 mouse. QMP absolute events did not position the
@@ -343,11 +377,13 @@ run_qemu() {
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-saved.ppm" --editor-saved
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-instances-tiled.ppm" --editor-tiles
     fi
-    printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+    if [ "$boot_number" != "3" ]; then
+        printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+    fi
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--editor-tiles"); then
+    if [ "$boot_number" != "3" ] && ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--editor-tiles"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi
@@ -358,6 +394,36 @@ run_qemu() {
 }
 
 run_qemu 1
+
+run_iso_boot() {
+    ISO_MONITOR="$TMP_DIR/qemu-iso-monitor.sock"
+    ISO_SCREEN="$TMP_DIR/everest-iso-screen.ppm"
+    ISO_LOG="$TMP_DIR/qemu-iso.log"
+    ISO_VARS="$TMP_DIR/OVMF_ISO_VARS.fd"
+    cp "$EFI_VARS" "$ISO_VARS"
+    qemu-system-x86_64 \
+        -machine pc -m 512M \
+        -drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE" \
+        -drive "if=pflash,format=raw,file=$ISO_VARS" \
+        -cdrom "$ROOT_DIR/dist/everest-os.iso" -boot order=d \
+        -qmp "unix:$TMP_DIR/qemu-iso-qmp.sock,server,nowait" \
+        -display none -monitor "unix:$ISO_MONITOR,server,nowait" \
+        -serial none -net none -no-reboot -no-shutdown >"$ISO_LOG" 2>&1 &
+    QEMU_PID=$!
+    attempt=0
+    while [ ! -S "$ISO_MONITOR" ] && [ "$attempt" -lt 100 ]; do
+        sleep 0.1
+        attempt=$((attempt + 1))
+    done
+    if [ ! -S "$ISO_MONITOR" ]; then cat "$ISO_LOG" >&2; exit 1; fi
+    sleep 8
+    if ! kill -0 "$QEMU_PID" >/dev/null 2>&1; then cat "$ISO_LOG" >&2; exit 1; fi
+    printf 'screendump %s\nquit\n' "$ISO_SCREEN" | socat - "UNIX-CONNECT:$ISO_MONITOR" >/dev/null
+    wait "$QEMU_PID" || true
+    QEMU_PID=""
+    cp "$ISO_SCREEN" "$ROOT_DIR/dist/qemu-debug-iso-boot.ppm"
+    python3 scripts/check-qemu-screen.py "$ISO_SCREEN" --iso-boot
+}
 
 # Verify the terminal wrote the exact submitted text to the persistent FAT32 image.
 if ! mtype -i "$DATA_IMAGE" ::USER.TXT > "$TMP_DIR/USER.TXT"; then
@@ -387,6 +453,8 @@ fi
 
 # Reboot with the exact same writable data-disk image and no onboarding input.
 run_qemu 2
+run_qemu 3
+run_iso_boot
 # Verify the Text Editor persisted the exact typed bytes to the FAT32 disk.
 if ! mtype -i "$DATA_IMAGE" ::NOTES.TXT > "$TMP_DIR/NOTES.TXT"; then
     printf 'NOTES.TXT was not written by the Text Editor.\n' >&2

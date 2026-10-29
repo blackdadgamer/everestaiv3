@@ -27,14 +27,43 @@ def main() -> int:
     if width < 800 or height < 600:
         print(f"Framebuffer too small: {width}x{height}", file=sys.stderr)
         return 1
-    if "--window-tiles" not in sys.argv and "--editor-tiles" not in sys.argv and not is_color(pixel(5, 5), (26, 27, 38)):
+    if "--window-tiles" not in sys.argv and "--editor-tiles" not in sys.argv and "--iso-boot" not in sys.argv and not is_color(pixel(5, 5), (26, 27, 38)):
         print("Tokyo Night desktop background mismatch.", file=sys.stderr)
         return 1
     if "--start-menu" in sys.argv:
-        if not is_color(pixel(12, height - 36 - 232), (187, 154, 247)):
+        if not is_color(pixel(12, height - 36 - 266), (187, 154, 247)):
             print("Start menu popup was not visible above the taskbar.", file=sys.stderr)
             return 1
         print("Start menu popup verified.")
+        return 0
+    if "--video-window" in sys.argv:
+        x = (width - 520) // 2
+        y = (height - 336) // 2
+        if not is_color(pixel(x, y), (187, 154, 247)):
+            print("Video Player window border was not rendered.", file=sys.stderr)
+            return 1
+        if not is_color(pixel(x + 8, y + 48), (80, 200, 160)):
+            print("Video Player launch marker was not rendered.", file=sys.stderr)
+            return 1
+        canvas_y = y + 54 + 12
+        samples = [pixel(x + 18 + (520 - 36) * i // 8 + 2, canvas_y) for i in range(8)]
+        if len(set(samples)) < 6:
+            print(f"RGB video frame did not contain expected color bars: {samples}", file=sys.stderr)
+            return 1
+        print("Video Player window and framebuffer RGB frame verified.")
+        return 0
+    if "--iso-boot" in sys.argv:
+        # Assert stable pixels from the actual first-boot onboarding UI instead
+        # of counting colors, which changes while the animated framebuffer runs.
+        panel_pixel = pixel(45, 75)
+        accent_pixel = pixel(80, 188)
+        if not is_color(panel_pixel, (5, 8, 24)):
+            print(f"ISO boot onboarding panel missing at (45,75): {panel_pixel}.", file=sys.stderr)
+            return 1
+        if not is_color(accent_pixel, (92, 145, 220)):
+            print(f"ISO boot onboarding accent border missing at (80,188): {accent_pixel}.", file=sys.stderr)
+            return 1
+        print(f"Bootable ISO onboarding pixels verified: {width}x{height}; panel, accent border, and rendered UI present.")
         return 0
     if "--calculator-window" in sys.argv:
         if not is_color(pixel((width - 520) // 2, (height - 336) // 2), (187, 154, 247)):
