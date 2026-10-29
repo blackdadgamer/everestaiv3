@@ -332,8 +332,8 @@ fn draw_app_windows(info: &BootInfo) {
         fill_rect(info, x + 2, y + 2, w - 4, 42, TITLEBAR_BG);
         let title: &[u8] = match kind { 1 => b"TERMINAL", 2 => b"FILE MANAGER", 3 => b"SETTINGS", 4 => b"CALCULATOR", 5 => b"TEXT EDITOR", _ => b"VIDEO PLAYER" };
         draw_text(info, x + 18, y + 15, 2, title, UI_WHITE);
-        if kind == 1 {
-            // Stable framebuffer marker used by the headless launcher regression test.
+        if kind == 1 || kind == 6 {
+            // Stable framebuffer markers used by headless app-launch regression tests.
             fill_rect(info, x + 8, y + 48, 8, 8, (80, 200, 160));
         }
         if kind == 4 {
