@@ -52,6 +52,9 @@ jobs:
             $packages
           qemu-system-x86_64 --version
 
+      - name: Build UEFI application
+        run: sh scripts/build-uefi.sh
+
       - name: Build bootable UEFI ISO
         run: sh scripts/build-iso.sh
 
