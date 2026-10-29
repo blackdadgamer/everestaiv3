@@ -42,6 +42,9 @@ def main() -> int:
         if not is_color(pixel(x, y), (187, 154, 247)):
             print("Video Player window border was not rendered.", file=sys.stderr)
             return 1
+        if not is_color(pixel(x + 8, y + 48), (80, 200, 160)):
+            print("Video Player launch marker was not rendered.", file=sys.stderr)
+            return 1
         canvas_y = y + 54 + 12
         samples = [pixel(x + 18 + (520 - 36) * i // 8 + 2, canvas_y) for i in range(8)]
         if len(set(samples)) < 6:
