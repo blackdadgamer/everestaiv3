@@ -53,13 +53,20 @@ def main() -> int:
         print("Video Player window and framebuffer RGB frame verified.")
         return 0
     if "--iso-boot" in sys.argv:
-        bright = sum(1 for i in range(0, len(pixels), 3) if max(pixels[i:i+3]) > 220)
-        sampled_colors = {pixel(x, y) for x in range(0, width, max(1, width // 32))
-                          for y in range(0, height, max(1, height // 24))}
-        if bright < 100 or len(sampled_colors) < 5:
-            print(f"ISO boot framebuffer lacks rendered OS UI content: bright={bright}, colors={len(sampled_colors)}.", file=sys.stderr)
+        # Assert stable pixels from the actual first-boot onboarding UI instead
+        # of counting colors, which changes while the animated framebuffer runs.
+        panel_pixel = pixel(45, 75)
+        accent_pixel = pixel(80, 188)
+        if not is_color(panel_pixel, (5, 8, 24)):
+            print(f"ISO boot onboarding panel missing at (45,75): {panel_pixel}.", file=sys.stderr)
             return 1
-        print(f"Bootable ISO rendered framebuffer content: {width}x{height}, {len(sampled_colors)} sampled colors.")
+        if not is_color(accent_pixel, (187, 154, 247)):
+            print(f"ISO boot onboarding accent border missing at (80,188): {accent_pixel}.", file=sys.stderr)
+            return 1
+        if bright < 100:
+            print(f"ISO boot framebuffer lacks rendered text/UI: bright={bright}.", file=sys.stderr)
+            return 1
+        print(f"Bootable ISO onboarding pixels verified: {width}x{height}; panel, accent border, and rendered UI present.")
         return 0
     if "--calculator-window" in sys.argv:
         if not is_color(pixel((width - 520) // 2, (height - 336) // 2), (187, 154, 247)):
