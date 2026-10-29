@@ -137,7 +137,7 @@ run_qemu() {
             for step in 1 2 3 4; do printf 'mouse_move 0 -20\n'; sleep 0.02; done
             printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.5
             printf 'screendump %s\n' "$TMP_DIR/video-paused-a.ppm"
-            sleep 1
+            sleep 0.6
             printf 'screendump %s\n' "$TMP_DIR/video-paused-b.ppm"
             # Keyboard P resumes and S stops; capture both control states for CI artifacts.
             printf 'sendkey p\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-playing.ppm"
