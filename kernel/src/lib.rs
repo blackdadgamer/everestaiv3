@@ -293,7 +293,7 @@ fn spawn_app_window(info: &BootInfo, kind: u8) {
         (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
     } else if kind == 4 && editor_already_open {
         (info.width / 2 + 40, info.height.saturating_sub(336) / 2)
-    } else if kind == 4 || kind == 5 {
+    } else if kind == 4 || kind == 5 || kind == 6 {
         (info.width.saturating_sub(520) / 2, info.height.saturating_sub(336) / 2)
     } else {
         (180 + (slot * 44), 100 + (slot * 36))
