@@ -19,6 +19,6 @@ mmd -i "$ESP" ::/EFI/BOOT
 mcopy -i "$ESP" "$EFI_FILE" ::/EFI/BOOT/BOOTX64.EFI
 cp "$ESP" "$ISO_ROOT/boot/efiboot.img"
 xorriso -as mkisofs -R -J -V EVEREST_OS -o "$ROOT_DIR/dist/everest-os.iso" \
-  -eltorito-alt-boot -e boot/efiboot.img -no-emul-boot -isohybrid-gpt-basdat "$ISO_ROOT"
+  -e boot/efiboot.img -no-emul-boot -isohybrid-gpt-basdat "$ISO_ROOT"
 test -s "$ROOT_DIR/dist/everest-os.iso"
 file "$ROOT_DIR/dist/everest-os.iso"
