@@ -144,6 +144,7 @@ run_qemu() {
             # Keyboard P resumes and S stops; capture both control states for CI artifacts.
             printf 'sendkey p\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-playing.ppm"
             printf 'sendkey s\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-stopped.ppm"
+            printf 'quit\n'
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/video-hmp.log"
         python3 scripts/check-qemu-screen.py "$TMP_DIR/video-start-menu.ppm" --start-menu
         cp "$TMP_DIR/video-window.ppm" "$ROOT_DIR/dist/qemu-debug-video-window.ppm"
@@ -376,7 +377,9 @@ run_qemu() {
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-saved.ppm" --editor-saved
         python3 scripts/check-qemu-screen.py "$TMP_DIR/editor-instances-tiled.ppm" --editor-tiles
     fi
-    printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+    if [ "$boot_number" != "3" ]; then
+        printf 'screendump %s\nquit\n' "$SCREEN" | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
+    fi
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
