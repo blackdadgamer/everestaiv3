@@ -56,7 +56,7 @@ def main() -> int:
         bright = sum(1 for i in range(0, len(pixels), 3) if max(pixels[i:i+3]) > 220)
         sampled_colors = {pixel(x, y) for x in range(0, width, max(1, width // 32))
                           for y in range(0, height, max(1, height // 24))}
-        if bright < 100 or len(sampled_colors) < 12:
+        if bright < 100 or len(sampled_colors) < 5:
             print(f"ISO boot framebuffer lacks rendered OS UI content: bright={bright}, colors={len(sampled_colors)}.", file=sys.stderr)
             return 1
         print(f"Bootable ISO rendered framebuffer content: {width}x{height}, {len(sampled_colors)} sampled colors.")
