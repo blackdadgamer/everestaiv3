@@ -768,9 +768,11 @@ fn process_mouse_events(info: &BootInfo) -> bool {
             let taskbar_y = info.height.saturating_sub(36);
             if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
-            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(232) && y < taskbar_y {
-                let row = y.saturating_sub(taskbar_y.saturating_sub(164)) / 34;
-                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), 3 => spawn_app_window(info, 4), _ => spawn_app_window(info, 5) }
+            } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(266) && y < taskbar_y {
+                let row = y.saturating_sub(taskbar_y.saturating_sub(212)) / 34;
+                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), 3 => spawn_app_window(info, 4), 4 => spawn_app_window(info, 5), _ => { VIDEO_PLAYING.store(1, Ordering::Relaxed); spawn_app_window(info, 6); } }
+            } else if handle_video_player_click(info, x, y) {
+                // Video Player transport controls consumed the click.
             } else if handle_video_player_click(info, x, y) {
                 // Video Player transport controls consumed the click.
             } else if handle_text_editor_click(info, x, y) {
@@ -934,6 +936,21 @@ fn update_onboarding(info: &BootInfo) {
     let mut redraw = false;
 
     while let Some(key) = interrupts::pop_key() {
+        if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 {
+            let active = ACTIVE_APP_WINDOW.load(Ordering::Relaxed);
+            if active < APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8) && APP_WINDOW_KIND[active].load(Ordering::Relaxed) == 6 {
+                if key == b'p' || key == b'P' {
+                    VIDEO_PLAYING.store(if VIDEO_PLAYING.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
+                    redraw = true;
+                    continue;
+                } else if key == b's' || key == b'S' {
+                    VIDEO_PLAYING.store(0, Ordering::Relaxed);
+                    VIDEO_FRAME.store(0, Ordering::Relaxed);
+                    redraw = true;
+                    continue;
+                }
+            }
+        }
         if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && handle_text_editor_key(key) {
             redraw = true;
             continue;
