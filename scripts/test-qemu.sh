@@ -121,6 +121,36 @@ run_qemu() {
             printf 'sendkey ret\n'
         } | socat - "UNIX-CONNECT:$MONITOR" >/dev/null
         sleep 1
+    elif [ "$boot_number" = "3" ]; then
+        {
+            printf 'mouse_set 0\n'
+            # From the centered PS/2 cursor, move to START.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29; do printf 'mouse_move -20 0\n'; sleep 0.02; done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do printf 'mouse_move 0 20\n'; sleep 0.02; done
+            printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.3
+            # Video Player is the first launcher entry, above Terminal.
+            for step in 1 2 3 4 5 6 7 8 9 10; do printf 'mouse_move 0 -20\n'; sleep 0.02; done
+            printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.8
+            printf 'screendump %s\n' "$TMP_DIR/video-window.ppm"
+            # Move onto Play/Pause, click to pause, and compare two frames.
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 20 0\n'; sleep 0.02; done
+            for step in 1 2 3 4 5; do printf 'mouse_move 0 -20\n'; sleep 0.02; done
+            printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.5
+            printf 'screendump %s\n' "$TMP_DIR/video-paused-a.ppm"
+            sleep 1
+            printf 'screendump %s\n' "$TMP_DIR/video-paused-b.ppm"
+            # Keyboard P resumes and S stops; capture both control states for CI artifacts.
+            printf 'sendkey p\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-playing.ppm"
+            printf 'sendkey s\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-stopped.ppm"
+        } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/video-hmp.log"
+        cp "$TMP_DIR/video-window.ppm" "$ROOT_DIR/dist/qemu-debug-video-window.ppm"
+        cp "$TMP_DIR/video-paused-a.ppm" "$ROOT_DIR/dist/qemu-debug-video-paused.ppm"
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/video-window.ppm" --video-window
+        if ! cmp -s "$TMP_DIR/video-paused-a.ppm" "$TMP_DIR/video-paused-b.ppm"; then
+            echo "Video Player frame changed after Pause; animation did not stop." >&2
+            exit 1
+        fi
+        echo "Video Player Play/Pause framebuffer freeze verified."
     else
         # Use QEMU's HMP mouse controls so movement and button state target
         # the same active PS/2 mouse. QMP absolute events did not position the
@@ -347,7 +377,7 @@ run_qemu() {
     wait "$QEMU_PID" || true
     QEMU_PID=""
 
-    if ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--editor-tiles"); then
+    if [ "$boot_number" != "3" ] && ! python3 scripts/check-qemu-screen.py "$SCREEN" $([ "$boot_number" = "2" ] && printf -- "--editor-tiles"); then
         cp "$SCREEN" "$ROOT_DIR/dist/qemu-debug-screen-$boot_number.ppm"
         cp "$QEMU_LOG" "$ROOT_DIR/dist/qemu-debug-$boot_number.log"
         if [ -f "$TMP_DIR/qmp-$boot_number.log" ]; then cp "$TMP_DIR/qmp-$boot_number.log" "$ROOT_DIR/dist/qemu-debug-qmp-$boot_number.log"; fi
@@ -387,6 +417,7 @@ fi
 
 # Reboot with the exact same writable data-disk image and no onboarding input.
 run_qemu 2
+run_qemu 3
 # Verify the Text Editor persisted the exact typed bytes to the FAT32 disk.
 if ! mtype -i "$DATA_IMAGE" ::NOTES.TXT > "$TMP_DIR/NOTES.TXT"; then
     printf 'NOTES.TXT was not written by the Text Editor.\n' >&2
