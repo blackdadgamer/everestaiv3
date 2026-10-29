@@ -125,16 +125,16 @@ run_qemu() {
         {
             printf 'mouse_set 0\n'
             # From the centered PS/2 cursor, move to START.
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29; do printf 'mouse_move -20 0\n'; sleep 0.02; done
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 0 20\n'; sleep 0.02; done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29; do printf 'mouse_move -20 0\n'; sleep 0.05; done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 0 20\n'; sleep 0.05; done
             printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.3
             # Video Player is the first launcher entry, above Terminal.
-            for step in 1 2 3 4 5 6 7 8 9 10; do printf 'mouse_move 0 -20\n'; sleep 0.02; done
+            for step in 1 2 3 4 5 6 7 8 9 10; do printf 'mouse_move 0 -20\n'; sleep 0.05; done
             printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.8
             printf 'screendump %s\n' "$TMP_DIR/video-window.ppm"
             # Move onto Play/Pause, click to pause, and compare two frames.
-            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 20 0\n'; sleep 0.02; done
-            for step in 1 2 3 4; do printf 'mouse_move 0 -20\n'; sleep 0.02; done
+            for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 20 0\n'; sleep 0.05; done
+            for step in 1 2 3 4; do printf 'mouse_move 0 -20\n'; sleep 0.05; done
             printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.5
             printf 'screendump %s\n' "$TMP_DIR/video-paused-a.ppm"
             sleep 0.6
