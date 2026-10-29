@@ -130,7 +130,6 @@ run_qemu() {
             for step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do printf 'mouse_move 0 20\n'; sleep 0.05; done
             printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.5
             printf 'screendump %s\n' "$TMP_DIR/video-start-menu.ppm"
-            python3 scripts/check-qemu-screen.py "$TMP_DIR/video-start-menu.ppm" --start-menu
             # Video Player is the first launcher entry, above Terminal.
             for step in 1 2 3 4 5 6 7 8 9 10; do printf 'mouse_move 0 -20\n'; sleep 0.1; done
             printf 'mouse_button 1\n'; sleep 0.2; printf 'mouse_button 0\n'; sleep 0.8
@@ -146,6 +145,7 @@ run_qemu() {
             printf 'sendkey p\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-playing.ppm"
             printf 'sendkey s\n'; sleep 0.4; printf 'screendump %s\n' "$TMP_DIR/video-stopped.ppm"
         } | socat -T 1 - "UNIX-CONNECT:$MONITOR" > "$TMP_DIR/video-hmp.log"
+        python3 scripts/check-qemu-screen.py "$TMP_DIR/video-start-menu.ppm" --start-menu
         cp "$TMP_DIR/video-window.ppm" "$ROOT_DIR/dist/qemu-debug-video-window.ppm"
         cp "$TMP_DIR/video-paused-a.ppm" "$ROOT_DIR/dist/qemu-debug-video-paused.ppm"
         python3 scripts/check-qemu-screen.py "$TMP_DIR/video-window.ppm" --video-window
