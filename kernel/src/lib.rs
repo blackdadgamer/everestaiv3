@@ -595,12 +595,12 @@ fn draw_start_menu(info: &BootInfo) {
     fill_rect(info, 12, y.saturating_sub(266), 220, 262, TITLEBAR_BG);
     draw_border(info, 12, y.saturating_sub(266), 220, 262, 2, FILE_SELECTION);
     draw_text(info, 28, y.saturating_sub(248), 2, b"START MENU", UI_WHITE);
-    draw_text(info, 32, y.saturating_sub(180), 2, b"TERMINAL", FILE_TEXT);
-    draw_text(info, 32, y.saturating_sub(146), 2, b"FILE MANAGER", FILE_TEXT);
-    draw_text(info, 32, y.saturating_sub(112), 2, b"SETTINGS", FILE_TEXT);
-    draw_text(info, 32, y.saturating_sub(78), 2, b"CALCULATOR", (122, 162, 247));
-    draw_text(info, 32, y.saturating_sub(44), 2, b"TEXT EDITOR", FILE_TEXT);
-    draw_text(info, 32, y.saturating_sub(10), 2, b"VIDEO PLAYER", (80, 200, 160));
+    draw_text(info, 32, y.saturating_sub(180), 2, b"VIDEO PLAYER", (80, 200, 160));
+    draw_text(info, 32, y.saturating_sub(146), 2, b"TERMINAL", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(112), 2, b"FILE MANAGER", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(78), 2, b"SETTINGS", FILE_TEXT);
+    draw_text(info, 32, y.saturating_sub(44), 2, b"CALCULATOR", (122, 162, 247));
+    draw_text(info, 32, y.saturating_sub(10), 2, b"TEXT EDITOR", FILE_TEXT);
 }
 
 
@@ -769,8 +769,8 @@ fn process_mouse_events(info: &BootInfo) -> bool {
             if x >= 8 && x <= 112 && y >= taskbar_y + 4 && y < taskbar_y + 32 {
                 START_MENU_OPEN.store(if START_MENU_OPEN.load(Ordering::Relaxed) == 0 { 1 } else { 0 }, Ordering::Relaxed);
             } else if START_MENU_OPEN.load(Ordering::Relaxed) != 0 && x >= 12 && x < 232 && y >= taskbar_y.saturating_sub(266) && y < taskbar_y {
-                let row = y.saturating_sub(taskbar_y.saturating_sub(212)) / 34;
-                match row { 0 => spawn_app_window(info, 1), 1 => spawn_app_window(info, 2), 2 => spawn_app_window(info, 3), 3 => spawn_app_window(info, 4), 4 => spawn_app_window(info, 5), _ => { VIDEO_PLAYING.store(1, Ordering::Relaxed); spawn_app_window(info, 6); } }
+                let row = y.saturating_sub(taskbar_y.saturating_sub(197)) / 34;
+                match row { 0 => { VIDEO_PLAYING.store(1, Ordering::Relaxed); spawn_app_window(info, 6); }, 1 => spawn_app_window(info, 1), 2 => spawn_app_window(info, 2), 3 => spawn_app_window(info, 3), 4 => spawn_app_window(info, 4), _ => spawn_app_window(info, 5) }
             } else if handle_video_player_click(info, x, y) {
                 // Video Player transport controls consumed the click.
             } else if handle_video_player_click(info, x, y) {
