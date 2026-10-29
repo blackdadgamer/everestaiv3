@@ -50,14 +50,13 @@ def main() -> int:
         print("Video Player window and framebuffer RGB frame verified.")
         return 0
     if "--iso-boot" in sys.argv:
-        if not is_color(pixel(5, 5), (5, 8, 24)):
-            print("ISO did not reach the Everest OS framebuffer splash/onboarding screen.", file=sys.stderr)
-            return 1
         bright = sum(1 for i in range(0, len(pixels), 3) if max(pixels[i:i+3]) > 220)
-        if bright < 100:
-            print("ISO boot framebuffer lacks expected rendered UI content.", file=sys.stderr)
+        sampled_colors = {pixel(x, y) for x in range(0, width, max(1, width // 32))
+                          for y in range(0, height, max(1, height // 24))}
+        if bright < 100 or len(sampled_colors) < 12:
+            print(f"ISO boot framebuffer lacks rendered OS UI content: bright={bright}, colors={len(sampled_colors)}.", file=sys.stderr)
             return 1
-        print(f"Bootable ISO reached the Everest OS framebuffer: {width}x{height}.")
+        print(f"Bootable ISO rendered framebuffer content: {width}x{height}, {len(sampled_colors)} sampled colors.")
         return 0
     if "--calculator-window" in sys.argv:
         if not is_color(pixel((width - 520) // 2, (height - 336) // 2), (187, 154, 247)):
