@@ -1045,19 +1045,13 @@ fn update_onboarding(info: &BootInfo) {
     }
 
     if process_mouse_events(info) { return; }
-    let count = APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8);
-    let video_window = (0..count).find(|index| APP_WINDOW_KIND[*index].load(Ordering::Relaxed) == 6);
-    if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && VIDEO_PLAYING.load(Ordering::Relaxed) != 0 {
+    let video_open = (0..APP_WINDOW_COUNT.load(Ordering::Relaxed).min(8))
+        .any(|index| APP_WINDOW_KIND[index].load(Ordering::Relaxed) == 6);
+    if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && video_open && VIDEO_PLAYING.load(Ordering::Relaxed) != 0 {
         let tick = VIDEO_REFRESH_TICK.fetch_add(1, Ordering::Relaxed);
-        if tick % 20 == 0 {
-            if let Some(index) = video_window {
-                VIDEO_FRAME.fetch_add(1, Ordering::Relaxed);
-                let x = APP_WINDOW_X[index].load(Ordering::Relaxed);
-                let y = APP_WINDOW_Y[index].load(Ordering::Relaxed);
-                let w = APP_WINDOW_W[index].load(Ordering::Relaxed).min(info.width.saturating_sub(x));
-                let h = APP_WINDOW_H[index].load(Ordering::Relaxed).min(info.height.saturating_sub(y + 36));
-                draw_video_player(info, x, y, w, h);
-            }
+        if tick % 4 == 0 {
+            VIDEO_FRAME.fetch_add(1, Ordering::Relaxed);
+            draw_desktop(info);
         }
     }
     if redraw {
