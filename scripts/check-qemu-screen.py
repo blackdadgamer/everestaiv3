@@ -31,7 +31,7 @@ def main() -> int:
         print("Tokyo Night desktop background mismatch.", file=sys.stderr)
         return 1
     if "--start-menu" in sys.argv:
-        if not is_color(pixel(12, height - 36 - 232), (187, 154, 247)):
+        if not is_color(pixel(12, height - 36 - 266), (187, 154, 247)):
             print("Start menu popup was not visible above the taskbar.", file=sys.stderr)
             return 1
         print("Start menu popup verified.")
@@ -43,7 +43,7 @@ def main() -> int:
             print("Video Player window border was not rendered.", file=sys.stderr)
             return 1
         canvas_y = y + 54 + 12
-        samples = [pixel(x + 18 + (width - 36) * i // 8 + 2, canvas_y) for i in range(8)]
+        samples = [pixel(x + 18 + (520 - 36) * i // 8 + 2, canvas_y) for i in range(8)]
         if len(set(samples)) < 6:
             print(f"RGB video frame did not contain expected color bars: {samples}", file=sys.stderr)
             return 1
