@@ -60,7 +60,7 @@ def main() -> int:
         if not is_color(panel_pixel, (5, 8, 24)):
             print(f"ISO boot onboarding panel missing at (45,75): {panel_pixel}.", file=sys.stderr)
             return 1
-        if not is_color(accent_pixel, (187, 154, 247)):
+        if not is_color(accent_pixel, (92, 145, 220)):
             print(f"ISO boot onboarding accent border missing at (80,188): {accent_pixel}.", file=sys.stderr)
             return 1
         print(f"Bootable ISO onboarding pixels verified: {width}x{height}; panel, accent border, and rendered UI present.")
