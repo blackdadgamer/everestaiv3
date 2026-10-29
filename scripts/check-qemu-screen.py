@@ -36,6 +36,29 @@ def main() -> int:
             return 1
         print("Start menu popup verified.")
         return 0
+    if "--video-window" in sys.argv:
+        x = (width - 520) // 2
+        y = (height - 336) // 2
+        if not is_color(pixel(x, y), (187, 154, 247)):
+            print("Video Player window border was not rendered.", file=sys.stderr)
+            return 1
+        canvas_y = y + 54 + 12
+        samples = [pixel(x + 18 + (width - 36) * i // 8 + 2, canvas_y) for i in range(8)]
+        if len(set(samples)) < 6:
+            print(f"RGB video frame did not contain expected color bars: {samples}", file=sys.stderr)
+            return 1
+        print("Video Player window and framebuffer RGB frame verified.")
+        return 0
+    if "--iso-boot" in sys.argv:
+        if not is_color(pixel(5, 5), (5, 8, 24)):
+            print("ISO did not reach the Everest OS framebuffer splash/onboarding screen.", file=sys.stderr)
+            return 1
+        bright = sum(1 for i in range(0, len(pixels), 3) if max(pixels[i:i+3]) > 220)
+        if bright < 100:
+            print("ISO boot framebuffer lacks expected rendered UI content.", file=sys.stderr)
+            return 1
+        print(f"Bootable ISO reached the Everest OS framebuffer: {width}x{height}.")
+        return 0
     if "--calculator-window" in sys.argv:
         if not is_color(pixel((width - 520) // 2, (height - 336) // 2), (187, 154, 247)):
             print("Calculator window was not spawned at the center of the screen.", file=sys.stderr)
