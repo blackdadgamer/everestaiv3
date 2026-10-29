@@ -389,6 +389,36 @@ run_qemu() {
 
 run_qemu 1
 
+run_iso_boot() {
+    ISO_MONITOR="$TMP_DIR/qemu-iso-monitor.sock"
+    ISO_SCREEN="$TMP_DIR/everest-iso-screen.ppm"
+    ISO_LOG="$TMP_DIR/qemu-iso.log"
+    ISO_VARS="$TMP_DIR/OVMF_ISO_VARS.fd"
+    cp "$EFI_VARS" "$ISO_VARS"
+    qemu-system-x86_64 \
+        -machine pc -m 512M \
+        -drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE" \
+        -drive "if=pflash,format=raw,file=$ISO_VARS" \
+        -cdrom "$ROOT_DIR/dist/everest-os.iso" -boot order=d \
+        -qmp "unix:$TMP_DIR/qemu-iso-qmp.sock,server,nowait" \
+        -display none -monitor "unix:$ISO_MONITOR,server,nowait" \
+        -serial none -net none -no-reboot -no-shutdown >"$ISO_LOG" 2>&1 &
+    QEMU_PID=$!
+    attempt=0
+    while [ ! -S "$ISO_MONITOR" ] && [ "$attempt" -lt 100 ]; do
+        sleep 0.1
+        attempt=$((attempt + 1))
+    done
+    if [ ! -S "$ISO_MONITOR" ]; then cat "$ISO_LOG" >&2; exit 1; fi
+    sleep 8
+    if ! kill -0 "$QEMU_PID" >/dev/null 2>&1; then cat "$ISO_LOG" >&2; exit 1; fi
+    printf 'screendump %s\nquit\n' "$ISO_SCREEN" | socat - "UNIX-CONNECT:$ISO_MONITOR" >/dev/null
+    wait "$QEMU_PID" || true
+    QEMU_PID=""
+    cp "$ISO_SCREEN" "$ROOT_DIR/dist/qemu-debug-iso-boot.ppm"
+    python3 scripts/check-qemu-screen.py "$ISO_SCREEN" --iso-boot
+}
+
 # Verify the terminal wrote the exact submitted text to the persistent FAT32 image.
 if ! mtype -i "$DATA_IMAGE" ::USER.TXT > "$TMP_DIR/USER.TXT"; then
     printf 'USER.TXT was not written by the terminal.\n' >&2
@@ -418,6 +448,7 @@ fi
 # Reboot with the exact same writable data-disk image and no onboarding input.
 run_qemu 2
 run_qemu 3
+run_iso_boot
 # Verify the Text Editor persisted the exact typed bytes to the FAT32 disk.
 if ! mtype -i "$DATA_IMAGE" ::NOTES.TXT > "$TMP_DIR/NOTES.TXT"; then
     printf 'NOTES.TXT was not written by the Text Editor.\n' >&2
