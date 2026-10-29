@@ -12,11 +12,12 @@ ISO_ROOT="$ROOT_DIR/dist/iso-root"
 ESP="$ROOT_DIR/dist/efiboot.img"
 mkdir -p "$ISO_ROOT/EFI/BOOT" "$ISO_ROOT/boot"
 cp "$EFI_FILE" "$ISO_ROOT/EFI/BOOT/BOOTX64.EFI"
-truncate -s 16M "$ESP"
+truncate -s 64M "$ESP"
 mkfs.vfat -F 32 "$ESP" >/dev/null
 mmd -i "$ESP" ::/EFI
 mmd -i "$ESP" ::/EFI/BOOT
 mcopy -i "$ESP" "$EFI_FILE" ::/EFI/BOOT/BOOTX64.EFI
+mdir -i "$ESP" ::/EFI/BOOT
 cp "$ESP" "$ISO_ROOT/boot/efiboot.img"
 xorriso -as mkisofs -R -J -V EVEREST_OS -o "$ROOT_DIR/dist/everest-os.iso" \
   -e boot/efiboot.img -no-emul-boot -isohybrid-gpt-basdat "$ISO_ROOT"
