@@ -1049,7 +1049,7 @@ fn update_onboarding(info: &BootInfo) {
         .any(|index| APP_WINDOW_KIND[index].load(Ordering::Relaxed) == 6);
     if ONBOARDING_STEP.load(Ordering::Relaxed) >= 3 && video_open && VIDEO_PLAYING.load(Ordering::Relaxed) != 0 {
         let tick = VIDEO_REFRESH_TICK.fetch_add(1, Ordering::Relaxed);
-        if tick % 4 == 0 {
+        if tick % 20 == 0 {
             VIDEO_FRAME.fetch_add(1, Ordering::Relaxed);
             draw_desktop(info);
         }
